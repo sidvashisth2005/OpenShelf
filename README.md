@@ -154,15 +154,15 @@ scripts/                  admin:hash, db:migrate
   (published/draft/removed), storage key, file metadata, moderation fields (reason, by, at, status before removal).
 - **audit_logs**: actor and actor role, action, target, JSON metadata, IP, time.
 
-## Security notes
+## Security
 
-- Uploads use an allowlist: images, MP4/WebM, audio, PDF, text/Markdown. SVG and HTML are refused, and the
-  extension must match the declared type.
-- Files are served with `nosniff` and a sandboxing CSP, and non-public files with `Cache-Control: no-store`.
-- Sign-in and sign-up are rate limited. Failed sign-ins take the same time whether or not the account exists.
-- Admin pages return **404** to non-admins, so they aren't discoverable.
-- Every server action and route handler re-checks authorization through the Data Access Layer
-  (`src/server/auth/current-user.ts`). Pages never rely on layouts alone for this.
+See [SECURITY.md](SECURITY.md) for the full checklist (CSP, rate limits, bot protection, upload checks, and more) and how to report a vulnerability.
+
+Optional environment variables:
+
+- `FORCE_HTTPS=true`: redirects HTTP to HTTPS and sends HSTS. Use it behind a TLS proxy.
+- `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`: turn on the Cloudflare Turnstile CAPTCHA on sign-up.
+- `FORM_TOKEN_SECRET`: a stable secret for the sign-up bot-check token. Set it when you run several instances.
 
 ## Account self-service
 
