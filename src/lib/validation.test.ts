@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkUploadType } from "./file-types";
+import { checkUploadType, matchesSignature } from "./file-types";
 import { signupSchema } from "./validation";
 
 const base = {
@@ -52,5 +52,24 @@ describe("checkUploadType", () => {
 
   it("rejects extension / type mismatches", () => {
     expect("error" in checkUploadType("x.html", "image/png")).toBe(true);
+  });
+});
+
+describe("matchesSignature", () => {
+  const enc = (s: string) => new TextEncoder().encode(s);
+  const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
+  const EXE = enc("MZ\x90\x00\x03\x00\x00\x00");
+
+  it("accepts real files of the claimed type", () => {
+    expect(matchesSignature("image/png", PNG)).toBe(true);
+    expect(matchesSignature("application/pdf", enc("%PDF-1.7\n"))).toBe(true);
+    expect(matchesSignature("image/jpeg", Uint8Array.from([0xff, 0xd8, 0xff, 0xe0]))).toBe(true);
+    expect(matchesSignature("text/markdown", enc("# Notes\nhello ✓"))).toBe(true);
+  });
+
+  it("rejects renamed executables and mismatched content", () => {
+    expect(matchesSignature("image/png", EXE)).toBe(false);
+    expect(matchesSignature("application/pdf", PNG)).toBe(false);
+    expect(matchesSignature("text/plain", Uint8Array.from([0x4d, 0x5a, 0x00, 0x01]))).toBe(false);
   });
 });

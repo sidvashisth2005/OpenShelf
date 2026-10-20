@@ -6,6 +6,7 @@ import { TOS_VERSION } from "@/lib/legal";
 import type { Role } from "@/lib/rbac";
 import { fieldErrors, loginSchema, signupSchema, type FieldErrors } from "@/lib/validation";
 import { audit } from "@/server/audit";
+import { checkHuman } from "@/server/bot-check";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
 import { createSession } from "@/server/auth/session";
 import { getDb, schema } from "@/server/db";
@@ -27,6 +28,8 @@ export async function signup(input: Record<string, unknown>): Promise<AuthResult
   if (!rateLimit(`signup:${meta.ip}`, 10, 60 * 60_000).ok) {
     return { ok: false, error: "Too many sign-ups from this network. Try again later." };
   }
+  const botError = await checkHuman(input, meta.ip);
+  if (botError) return { ok: false, error: botError };
   // The super admin account comes from config only, never from signup.
   if (superAdminConfig()?.email === email) {
     return { ok: false, fieldErrors: { email: "This email can't be used to register." } };

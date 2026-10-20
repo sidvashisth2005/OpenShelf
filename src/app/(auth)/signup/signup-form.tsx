@@ -6,12 +6,28 @@ import { signupAction } from "@/app/actions/auth";
 import { FieldError, FormError } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 
-export function SignupForm({ notice, tosVersion }: { notice: React.ReactNode; tosVersion: string }) {
+export function SignupForm({
+  notice,
+  tosVersion,
+  formToken,
+  turnstileSiteKey,
+}: {
+  notice: React.ReactNode;
+  tosVersion: string;
+  formToken: string;
+  turnstileSiteKey?: string;
+}) {
   const [state, action] = useActionState(signupAction, undefined);
   const fe = state?.fieldErrors ?? {};
   return (
     <form action={action} className="space-y-4" noValidate>
       <FormError message={state?.error} />
+      {/* Bot protection: a signed issue-time token and a honeypot humans never see. */}
+      <input type="hidden" name="formToken" value={formToken} />
+      <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
+        <label htmlFor="website">Leave this field empty</label>
+        <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" defaultValue="" />
+      </div>
       <div>
         <label className="label" htmlFor="email">Email</label>
         <input className="input" id="email" name="email" type="email" autoComplete="email" required />
@@ -49,6 +65,8 @@ export function SignupForm({ notice, tosVersion }: { notice: React.ReactNode; to
         </label>
         <FieldError message={fe.acceptTerms} />
       </div>
+
+      {turnstileSiteKey && <div className="cf-turnstile" data-sitekey={turnstileSiteKey} data-theme="auto" />}
 
       <SubmitButton block pendingText="Creating account…">Create account</SubmitButton>
     </form>

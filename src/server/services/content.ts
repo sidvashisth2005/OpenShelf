@@ -9,7 +9,7 @@ import type { CurrentUser } from "@/server/auth/current-user";
 import { getDb, schema } from "@/server/db";
 import { escapeLike } from "@/server/db/like";
 import type { Content } from "@/server/db/schema";
-import { checkUploadType } from "@/lib/file-types";
+import { checkUploadType, matchesSignature } from "@/lib/file-types";
 import { storage } from "@/server/storage";
 
 export const PAGE_SIZE = 24;
@@ -116,6 +116,10 @@ export async function createContent(user: CurrentUser, form: FormData): Promise<
   }
   const type = checkUploadType(file.name, file.type);
   if ("error" in type) return { ok: false, status: 400, fieldErrors: { file: type.error } };
+  const head = new Uint8Array(await file.slice(0, 4096).arrayBuffer());
+  if (!matchesSignature(type.mime, head)) {
+    return { ok: false, status: 400, fieldErrors: { file: "The file's contents don't match its type." } };
+  }
 
   const id = randomUUID();
   const storageKey = `${user.id}/${id}.${type.ext}`;
