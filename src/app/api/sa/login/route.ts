@@ -36,5 +36,6 @@ export async function GET(request: Request) {
   if (gate) {
     (await cookies()).set(GATE_COOKIE, gate, { httpOnly: true, secure: true, sameSite: "lax", path: "/", expires: new Date(exp) });
   }
-  return NextResponse.redirect(new URL("/admin", request.url), 303);
+  // Relative on purpose: behind the tunnel, request.url carries the local port, not the public host.
+  return new Response(null, { status: 303, headers: { location: "/admin" } });
 }

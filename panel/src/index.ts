@@ -64,7 +64,12 @@ const redirect = (to: string, cookie?: string) =>
 /** Rejects cross-site form posts (the session cookie is SameSite=Strict too). */
 function sameOrigin(req: Request): boolean {
   const origin = req.headers.get("origin");
-  return !origin || origin === new URL(req.url).origin;
+  if (!origin) return true;
+  try {
+    return new URL(origin).host === (req.headers.get("host") ?? new URL(req.url).host);
+  } catch {
+    return false;
+  }
 }
 
 async function audit(env: Env, req: Request, action: string, nodeId?: string) {

@@ -52,7 +52,8 @@ ${signedIn ? `<form method="post" action="/logout" class="right"><button class="
       "cache-control": "no-store",
       "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https:; frame-ancestors 'none'; base-uri 'none'",
       "x-frame-options": "DENY",
-      "referrer-policy": "no-referrer",
+      // "same-origin" (not "no-referrer"): Chromium sends Origin: null on form posts under no-referrer.
+      "referrer-policy": "same-origin",
     },
   });
 }
