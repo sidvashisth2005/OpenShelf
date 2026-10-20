@@ -23,7 +23,7 @@ export function ServerSettingsForm({
   const fe = state?.fieldErrors ?? {};
   return (
     <form action={action} className="space-y-6">
-      <FormError message={state?.error} />
+      <FormError message={state?.error ?? (fe.joinMode || fe.lanEnabled)} />
       <div className="max-w-md">
         <label className="label" htmlFor="name">Server name</label>
         <input className="input" id="name" name="name" defaultValue={defaults.name} required maxLength={60} />

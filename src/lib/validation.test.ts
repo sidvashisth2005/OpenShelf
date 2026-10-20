@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checkUploadType, matchesSignature } from "./file-types";
-import { signupSchema } from "./validation";
+import { serverSettingsSchema, signupSchema } from "./validation";
 
 const base = {
   email: "  Person@Example.com ",
@@ -71,5 +71,16 @@ describe("matchesSignature", () => {
     expect(matchesSignature("image/png", EXE)).toBe(false);
     expect(matchesSignature("application/pdf", PNG)).toBe(false);
     expect(matchesSignature("text/plain", Uint8Array.from([0x4d, 0x5a, 0x00, 0x01]))).toBe(false);
+  });
+});
+
+describe("serverSettingsSchema", () => {
+  it("treats a missing (unchecked) Wi-Fi checkbox as off", () => {
+    const r = serverSettingsSchema.safeParse({ name: "Team Shelf", joinMode: "approval" });
+    expect(r.success && r.data.lanEnabled).toBe(false);
+  });
+  it("reads a checked box as on", () => {
+    const r = serverSettingsSchema.safeParse({ name: "Team Shelf", joinMode: "open", lanEnabled: "on" });
+    expect(r.success && r.data.lanEnabled).toBe(true);
   });
 });

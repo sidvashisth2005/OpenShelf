@@ -97,8 +97,10 @@ export const setupSchema = z.object({
 export const serverSettingsSchema = z.object({
   name: z.string().trim().min(2, "Give your server a name.").max(60),
   joinMode: z.enum(["open", "invite", "approval"]),
+  // An unchecked checkbox sends nothing at all, so the key must be optional.
   lanEnabled: z
-    .union([z.literal("on"), z.literal("off"), z.undefined()])
+    .string()
+    .optional()
     .transform((v) => v === "on"),
 });
 
