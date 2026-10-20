@@ -34,6 +34,31 @@ if (existsSync(path.join(ROOT, "public"))) copy(path.join(ROOT, "public"), path.
 copy(path.join(ROOT, "drizzle"), path.join(OUT, "drizzle"));
 copy(path.join(ROOT, "installer", "app", "openshelf.mjs"), path.join(OUT, "openshelf.mjs"));
 
+// Turbopack references serverExternalPackages through hashed aliases in .next/node_modules
+// (e.g. "bcryptjs-ee66c2bdc904f2cf" -> ../../node_modules/bcryptjs). Those are symlinks, or
+// absolute junctions on Windows machines without symlink rights, so rebuild every alias as a
+// real copy of the package. The bundle then works wherever it's unzipped.
+const aliasRoot = path.join(OUT, ".next", "node_modules");
+const aliases = [];
+if (existsSync(aliasRoot)) {
+  for (const entry of readdirSync(aliasRoot)) {
+    if (entry.startsWith("@")) {
+      for (const sub of readdirSync(path.join(aliasRoot, entry))) aliases.push(`${entry}/${sub}`);
+    } else {
+      aliases.push(entry);
+    }
+  }
+}
+for (const alias of aliases) {
+  const pkg = alias.replace(/-[0-9a-f]{16}$/, "");
+  const source = path.join(OUT, "node_modules", pkg);
+  if (!existsSync(path.join(source, "package.json"))) fail(`external module ${alias}: ${pkg} is missing from the standalone node_modules`);
+  const target = path.join(aliasRoot, alias);
+  rmSync(target, { recursive: true, force: true });
+  cpSync(source, target, { recursive: true, dereference: true });
+}
+console.log(`Materialized ${aliases.length} external module alias(es): ${aliases.join(", ") || "none"}`);
+
 // Never ship local secrets or data: standalone output copies .env* files from the project.
 for (const name of readdirSync(OUT)) {
   if (name.startsWith(".env") || name === ".data") rmSync(path.join(OUT, name), { recursive: true, force: true });
