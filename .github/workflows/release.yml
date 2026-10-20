@@ -41,10 +41,8 @@ jobs:
 
       - name: Self-test the installer against the fresh bundle
         shell: pwsh
-        env:
-          OPENSHELF_ADMIN_PASSWORD: ci-only-password-not-secret
         run: |
-          $p = Start-Process dist\OpenShelf.exe -ArgumentList @('--yes','--dir',"$env:RUNNER_TEMP\os-install",'--app-zip','dist\openshelf-app.zip','--admin-email','ci@example.test','--no-shortcuts','--no-launch') -NoNewWindow -Wait -PassThru
+          $p = Start-Process dist\OpenShelf.exe -ArgumentList @('--yes','--dir',"$env:RUNNER_TEMP\os-install",'--app-zip','dist\openshelf-app.zip','--no-shortcuts','--no-launch') -NoNewWindow -Wait -PassThru
           if ($p.ExitCode -ne 0) { exit 1 }
 
       # Optional Authenticode signing. It runs only when the repository has the secrets

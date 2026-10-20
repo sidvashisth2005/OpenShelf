@@ -62,7 +62,7 @@ export function CreateInviteForm({ bases, lanEnabled }: { bases: { label: string
 }
 
 export function RevokeButton({ id }: { id: string }) {
-  const [state, action] = useActionState<ActionState, FormData>(() => revokeInviteAction(id), undefined);
+  const [state, action] = useActionState<ActionState, FormData>(revokeInviteAction.bind(null, id), undefined);
   return (
     <form action={action}>
       <button className="btn btn-danger btn-sm" type="submit">Revoke</button>

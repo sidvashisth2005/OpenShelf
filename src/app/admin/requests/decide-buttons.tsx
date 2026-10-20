@@ -7,8 +7,8 @@ import type { ActionState } from "@/app/actions/types";
 import { SubmitButton } from "@/components/submit-button";
 
 export function DecideButtons({ id, name }: { id: string; name: string }) {
-  const [approveState, approve] = useActionState<ActionState, FormData>(() => decideJoinAction(id, true), undefined);
-  const [rejectState, reject] = useActionState<ActionState, FormData>(() => decideJoinAction(id, false), undefined);
+  const [approveState, approve] = useActionState<ActionState, FormData>(decideJoinAction.bind(null, id, true), undefined);
+  const [rejectState, reject] = useActionState<ActionState, FormData>(decideJoinAction.bind(null, id, false), undefined);
   const error = approveState?.error ?? rejectState?.error;
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">

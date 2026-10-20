@@ -6,7 +6,7 @@
  *   1. downloads a pinned Node.js runtime and the latest OpenShelf app bundle,
  *      verifying both against published SHA-256 checksums
  *   2. installs them per-user under %LOCALAPPDATA%\OpenShelf (no admin rights)
- *   3. asks for the admin email + password (only a bcrypt hash is stored)
+ *   3. picks a free port (the owner creates their account in the browser on first open)
  *   4. runs a self-test against a throwaway database
  *   5. creates Desktop / Start Menu shortcuts and an "Apps & features" uninstaller
  *   6. starts OpenShelf and opens it in the browser
@@ -14,7 +14,7 @@
  * Re-running it updates an existing install and keeps all data.
  *
  * Flags (mostly for testing/automation):
- *   --yes  --dir <path>  --port <n>  --admin-email <e>  (password: OPENSHELF_ADMIN_PASSWORD)
+ *   --yes  --dir <path>  --port <n>
  *   --app-zip <path>  --node-zip <path>  --no-shortcuts  --no-launch
  */
 "use strict";
@@ -56,7 +56,7 @@ const TAR = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.
 
 const c = (code, s) => `\x1b[${code}m${s}\x1b[0m`;
 let stepNo = 0;
-const TOTAL = 6;
+const TOTAL = 5;
 const step = (t) => console.log(`\n${c(35, `[${++stepNo}/${TOTAL}]`)} ${c(1, t)}`);
 const info = (t) => console.log(`  ${t}`);
 
@@ -78,35 +78,6 @@ function ask(q) {
   return new Promise((res) => rl.question(q, (a) => (rl.close(), res(a.trim()))));
 }
 
-function askHidden(q) {
-  const stdin = process.stdin;
-  if (!stdin.isTTY) return ask(q);
-  process.stdout.write(q);
-  stdin.setRawMode(true);
-  stdin.resume();
-  stdin.setEncoding("utf8");
-  return new Promise((resolve, reject) => {
-    let v = "";
-    const onData = (chunk) => {
-      for (const ch of chunk) {
-        if (ch === "\r" || ch === "\n") {
-          stdin.setRawMode(false);
-          stdin.pause();
-          stdin.off("data", onData);
-          process.stdout.write("\n");
-          return resolve(v);
-        }
-        if (ch === "\u0003") {
-          stdin.setRawMode(false);
-          return reject(new Error("Cancelled"));
-        }
-        if (ch === "\u007f" || ch === "\b") v = v.slice(0, -1);
-        else v += ch;
-      }
-    };
-    stdin.on("data", onData);
-  });
-}
 
 // ------------------------------------------------------------------------------ io
 
@@ -240,35 +211,10 @@ async function getApp(tmp) {
   return version;
 }
 
-async function configure(isUpdate) {
-  step("Setting up your admin account");
-  let email = opt("admin-email");
-  if (isUpdate && !email) {
-    info("Existing installation found: keeping your admin account and data.");
-    const r = runNode(["configure", ...(opt("port") ? ["--port", opt("port")] : [])], "");
-    if (r.status !== 0) fail("could not update the configuration");
-    return;
-  }
-  info("This account manages your OpenShelf. The password is stored only as a bcrypt hash.");
-  while (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    if (!process.stdin.isTTY) fail("pass --admin-email for a non-interactive install");
-    email = await ask("  Admin email: ");
-  }
-  let password = process.env.OPENSHELF_ADMIN_PASSWORD;
-  while (!password) {
-    const pw = await askHidden("  Admin password (min 14 characters): ");
-    if (pw.length < 14) {
-      info("Too short, try again.");
-      continue;
-    }
-    if ((await askHidden("  Repeat password: ")) !== pw) {
-      info("Passwords don't match, try again.");
-      continue;
-    }
-    password = pw;
-  }
-  const r = runNode(["configure", "--email", email, ...(opt("port") ? ["--port", opt("port")] : [])], password);
-  if (r.status !== 0) fail("could not save the configuration");
+/** Picks a free port. The owner creates their admin account in the browser on first open. */
+function configure() {
+  const r = runNode(["configure", ...(opt("port") ? ["--port", opt("port")] : [])], "");
+  if (r.status !== 0) fail("could not write the configuration");
 }
 
 function selfTest() {
@@ -351,7 +297,7 @@ function launch() {
   if (has("no-launch")) return info("Skipped (--no-launch)");
   const r = runNode(["open"]);
   if (r.status !== 0) fail("OpenShelf could not start. See data\\server.log");
-  info("OpenShelf is running and has opened in your browser.");
+  info("OpenShelf has opened in your browser. Create your admin account there to finish.");
 }
 
 // ------------------------------------------------------------------------------ main
@@ -374,7 +320,7 @@ async function main() {
   try {
     await getNode(tmp);
     const version = await getApp(tmp);
-    await configure(isUpdate);
+    configure();
     selfTest();
     writeHelpers(version);
     registerShortcuts(version);

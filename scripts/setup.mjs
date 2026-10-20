@@ -5,18 +5,15 @@
  *   setup.cmd            (Windows)      ./setup.sh   (macOS / Linux)
  *   node scripts/setup.mjs [--start] [--skip-checks] [--port 3000]
  *
- * Steps: check Node -> install dependencies -> write .env.local (asks for the
- * super admin email + password and stores only a bcrypt hash) -> migrate the
- * embedded database -> typecheck, lint, unit tests -> production build.
- *
- * Non-interactive use (CI): set OPENSHELF_ADMIN_EMAIL and OPENSHELF_ADMIN_PASSWORD.
+ * Steps: check Node -> install dependencies -> write .env.local -> migrate the
+ * embedded database -> typecheck, lint, unit tests -> production build. The
+ * admin account is created in the browser on first open (/setup).
  */
 import { spawnSync, spawn } from "node:child_process";
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getEnvVar, setEnvVar } from "./lib/env-file.mjs";
-import { ask, askNewPassword } from "./lib/prompt.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -67,24 +64,10 @@ async function configure() {
   // Single-PC install: production mode with the embedded database unless a real Postgres is configured.
   if (!getEnvVar(text, "DATABASE_URL")) text = setEnvVar(text, "EMBEDDED_DB", "true");
 
-  if (getEnvVar(text, "SUPER_ADMIN_EMAIL") && getEnvVar(text, "SUPER_ADMIN_PASSWORD_HASH_B64")) {
-    console.log("  Super admin already configured, keeping it.");
-  } else {
-    console.log("  Set up the super admin account (only a bcrypt hash of the password is stored).");
-    let email = process.env.OPENSHELF_ADMIN_EMAIL?.trim();
-    while (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-      if (!process.stdin.isTTY) throw new Error("Set OPENSHELF_ADMIN_EMAIL to a valid email for non-interactive setup.");
-      email = await ask("  Super admin email: ");
-    }
-    const password = process.env.OPENSHELF_ADMIN_PASSWORD ?? (await askNewPassword("  Super admin password (min 14 chars)", 14));
-    if (password.length < 14) throw new Error("The super admin password must be at least 14 characters.");
-    const { default: bcrypt } = await import("bcryptjs");
-    const hash = await bcrypt.hash(password, 12);
-    text = setEnvVar(text, "SUPER_ADMIN_EMAIL", email.toLowerCase());
-    text = setEnvVar(text, "SUPER_ADMIN_PASSWORD_HASH_B64", Buffer.from(hash).toString("base64"));
-    console.log(`  Super admin: ${email.toLowerCase()}`);
-  }
+  // No credentials here: the first person to open the app on this PC creates the
+  // server's admin (owner) account at /setup.
   writeFileSync(envPath, text);
+  console.log("  Your admin account is created in the browser the first time you open OpenShelf.");
 }
 
 async function main() {

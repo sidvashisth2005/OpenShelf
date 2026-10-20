@@ -4,8 +4,9 @@
  * Next.js's standalone server.js). The installer, the desktop shortcuts and
  * the uninstaller all go through this file.
  *
- *   node openshelf.mjs configure --email <e> [--port <n>]   (password on stdin)
- *   node openshelf.mjs start      run the server in the foreground
+ *   node openshelf.mjs configure [--port <n>]   pick the port (the owner account is created at /setup)
+ *   node openshelf.mjs start      run the server (supervised; restarts when Wi-Fi sharing changes)
+ *   node openshelf.mjs reset-password --email <e>   set a new password (asks for it)
  *   node openshelf.mjs open       start in the background if needed, then open the browser
  *   node openshelf.mjs stop       stop the background server
  *   node openshelf.mjs selftest   boot a throwaway copy on a temp database and check it
@@ -13,7 +14,7 @@
  * Layout:  <install>/runtime (node) · <install>/app (this file) · <install>/data (kept on update)
  */
 import { execFile, spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, watchFile, writeFileSync } from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -59,7 +60,7 @@ function arg(name) {
   return i > 0 ? process.argv[i + 1] : undefined;
 }
 
-/** Prompts without echo when attached to a terminal (used by `configure` to reset the admin password). */
+/** Prompts without echo when attached to a terminal (used by `reset-password`). */
 function askHidden(question) {
   const stdin = process.stdin;
   process.stdout.write(question);
@@ -91,7 +92,7 @@ function askHidden(question) {
 
 async function readPassword() {
   if (!process.stdin.isTTY) return readStdin();
-  const pw = await askHidden("New admin password (min 14 characters): ");
+  const pw = await askHidden("New password (min 10 characters): ");
   if ((await askHidden("Repeat password: ")) !== pw) throw new Error("Passwords don't match.");
   return pw;
 }
@@ -100,7 +101,7 @@ async function readStdin() {
   const chunks = [];
   for await (const c of process.stdin) chunks.push(c);
   // Windows PowerShell 5.1 prefixes piped stdin with a UTF-8 BOM; it must not become part of the password.
-  return Buffer.concat(chunks).toString("utf8").replace(/^�/, "").replace(/\r?\n$/, "");
+  return Buffer.concat(chunks).toString("utf8").replace(/^\uFEFF/, "").replace(/\r?\n$/, "");
 }
 
 function freePort(preferred) {
@@ -146,25 +147,72 @@ function openBrowser(url) {
 
 // ---------------------------------------------------------------------------- commands
 
+/** Picks a free port. The server's owner account is created in the browser on first open (/setup). */
 async function configure() {
   const cfg = readConfig();
-  const email = arg("email")?.trim().toLowerCase();
-  if (email) {
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Invalid email address.");
-    const password = await readPassword();
-    if (password.length < 14) throw new Error("The admin password must be at least 14 characters.");
-    const { default: bcrypt } = await import("bcryptjs");
-    cfg.SUPER_ADMIN_EMAIL = email;
-    cfg.SUPER_ADMIN_PASSWORD_HASH_B64 = Buffer.from(await bcrypt.hash(password, 12)).toString("base64");
-  }
-  if (!cfg.SUPER_ADMIN_EMAIL) throw new Error("No admin configured. Pass --email and the password on stdin.");
   cfg.PORT = String(await freePort(Number(arg("port") || cfg.PORT || DEFAULT_PORT)));
-  cfg.PLATFORM_NAME ||= "OpenShelf";
   writeConfig(cfg);
-  console.log(`Configured: admin ${cfg.SUPER_ADMIN_EMAIL}, port ${cfg.PORT}`);
+  console.log(`Configured: port ${cfg.PORT}`);
 }
 
+const NETWORK_FILE = path.join(DATA_DIR, "network.json");
+
+/** Whether the admin turned on "Share on my Wi-Fi" (written by the app's Server settings). */
+function lanEnabled() {
+  try {
+    return JSON.parse(readFileSync(NETWORK_FILE, "utf8")).lan === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Supervisor: runs the server as a child process and restarts it when the
+ * network mode changes, so Wi-Fi sharing applies without the user doing anything.
+ */
 async function start() {
+  mkdirSync(DATA_DIR, { recursive: true });
+  let child;
+  let lan = false;
+  let restarting = false;
+
+  const launch = () => {
+    lan = lanEnabled();
+    child = spawn(process.execPath, [fileURLToPath(import.meta.url), "serve"], {
+      cwd: APP_DIR,
+      env: { ...process.env, OPENSHELF_BIND: lan ? "0.0.0.0" : "127.0.0.1" },
+      stdio: "inherit",
+      windowsHide: true,
+    });
+    writeFileSync(PID_FILE, JSON.stringify({ supervisor: process.pid, server: child.pid }));
+    child.on("exit", (code) => {
+      if (restarting) {
+        restarting = false;
+        return launch();
+      }
+      rmSync(PID_FILE, { force: true });
+      process.exit(code ?? 0);
+    });
+  };
+
+  watchFile(NETWORK_FILE, { interval: 1000 }, () => {
+    if (lanEnabled() !== lan && !restarting) {
+      restarting = true;
+      child.kill();
+    }
+  });
+  for (const sig of ["SIGINT", "SIGTERM"]) {
+    process.on(sig, () => {
+      child?.kill();
+      rmSync(PID_FILE, { force: true });
+      process.exit(0);
+    });
+  }
+  launch();
+}
+
+/** The actual Next.js server (one process); `start` supervises it. */
+async function serve() {
   const cfg = readConfig();
   mkdirSync(DATA_DIR, { recursive: true });
   Object.assign(process.env, cfg, {
@@ -173,18 +221,35 @@ async function start() {
     PGLITE_DIR: path.join(DATA_DIR, "db"),
     UPLOAD_DIR: path.join(DATA_DIR, "uploads"),
     PORT: String(portOf(cfg)),
-    // Only reachable from this PC.
-    HOSTNAME: "127.0.0.1",
+    // This PC only, unless the admin turned on Wi-Fi sharing.
+    HOSTNAME: process.env.OPENSHELF_BIND || "127.0.0.1",
+    OPENSHELF_NETWORK_FILE: NETWORK_FILE,
   });
-  writeFileSync(PID_FILE, String(process.pid));
-  const cleanup = () => {
-    try {
-      if (readFileSync(PID_FILE, "utf8") === String(process.pid)) rmSync(PID_FILE, { force: true });
-    } catch {}
-  };
-  process.on("exit", cleanup);
-  for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => process.exit(0));
   await import(pathToFileURL(path.join(APP_DIR, "server.js")).href);
+}
+
+/** Sets a new password for an account (e.g. the admin forgot theirs). Stops the server first. */
+async function resetPassword() {
+  const email = arg("email")?.trim().toLowerCase();
+  if (!email) throw new Error("Usage: openshelf.mjs reset-password --email you@example.com");
+  stop();
+  await new Promise((r) => setTimeout(r, 1500));
+  const password = await readPassword();
+  if (password.length < 10) throw new Error("Use at least 10 characters.");
+  const [{ default: bcrypt }, { PGlite }] = await Promise.all([import("bcryptjs"), import("@electric-sql/pglite")]);
+  const db = new PGlite(path.join(DATA_DIR, "db"));
+  try {
+    const hash = await bcrypt.hash(password, 12);
+    const res = await db.query(
+      "update users set password_hash = $1, updated_at = now() where lower(email) = $2 and role <> 'super_admin' returning username",
+      [hash, email],
+    );
+    if (res.rows.length === 0) throw new Error(`No account with the email ${email}.`);
+    await db.query("delete from sessions where user_id in (select id from users where lower(email) = $1)", [email]);
+    console.log(`Password updated for @${res.rows[0].username}. Open OpenShelf and sign in.`);
+  } finally {
+    await db.close();
+  }
 }
 
 async function open() {
@@ -309,20 +374,32 @@ async function checkForUpdate() {
 
 function stop() {
   if (!existsSync(PID_FILE)) return console.log("OpenShelf is not running.");
-  const pid = Number(readFileSync(PID_FILE, "utf8"));
+  const raw = readFileSync(PID_FILE, "utf8");
+  // Current format: {"supervisor":…, "server":…}; older installs wrote a bare pid.
+  let pids;
   try {
-    process.kill(pid);
-    console.log("OpenShelf stopped.");
+    const p = JSON.parse(raw);
+    pids = typeof p === "number" ? [p] : [p.server, p.supervisor];
   } catch {
-    console.log("OpenShelf was not running.");
+    pids = [Number(raw)];
   }
+  let stopped = false;
+  for (const pid of pids.filter(Boolean)) {
+    try {
+      process.kill(pid);
+      stopped = true;
+    } catch {
+      // already gone
+    }
+  }
+  console.log(stopped ? "OpenShelf stopped." : "OpenShelf was not running.");
   rmSync(PID_FILE, { force: true });
 }
 
 async function selftest() {
   const tmp = mkdtempSync(path.join(os.tmpdir(), "openshelf-selftest-"));
   const port = await freePort(0);
-  const child = spawn(process.execPath, [fileURLToPath(import.meta.url), "start"], {
+  const child = spawn(process.execPath, [fileURLToPath(import.meta.url), "serve"], {
     cwd: APP_DIR,
     env: { ...process.env, OPENSHELF_DATA_DIR: tmp, OPENSHELF_PORT: String(port) },
     stdio: ["ignore", "pipe", "pipe"],
@@ -341,9 +418,10 @@ async function selftest() {
   const status = async (p) => (await fetch(base + p, { redirect: "manual" })).status;
   try {
     check("server starts and database migrates", await waitHealthy(port, 90));
-    check("home page", (await status("/")) === 200);
-    check("sign-in page", (await status("/login")) === 200);
-    check("sign-up page with terms", (await fetch(`${base}/signup`).then((r) => r.text())).includes("Administrator access"));
+    const home = await fetch(`${base}/`, { redirect: "manual" });
+    check("new server sends you to setup", home.status === 307 && (home.headers.get("location") ?? "").endsWith("/setup"));
+    check("setup page", (await fetch(`${base}/setup`).then((r) => r.text())).includes("Set up your server"));
+    check("sign-up waits for setup", (await status("/signup")) === 307);
     check("terms of service", (await status("/terms")) === 200);
     check("admin area is protected", (await status("/admin")) === 307 || (await status("/admin")) === 404);
     check("private files are not served", (await status("/api/files/00000000-0000-4000-8000-000000000000")) === 404);
@@ -363,7 +441,7 @@ async function selftest() {
 // Run the CLI only when executed directly (tests import the helpers above).
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
-  const commands = { configure, start, open, stop, selftest, "check-update": checkForUpdate };
+  const commands = { configure, start, serve, open, stop, selftest, "reset-password": resetPassword, "check-update": checkForUpdate };
   const cmd = commands[process.argv[2]];
   if (!cmd) {
     console.error(`Usage: openshelf.mjs <${Object.keys(commands).join("|")}>`);
