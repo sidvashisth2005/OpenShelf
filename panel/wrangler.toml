@@ -6,4 +6,4 @@ compatibility_date = "2026-10-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "openshelf-panel"
-database_id = "local-dev"
+database_id = "1bed4bce-9d54-4ad7-b748-6f1f5490cd59"

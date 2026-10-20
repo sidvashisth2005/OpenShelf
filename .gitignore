@@ -50,3 +50,4 @@ panel/node_modules
 panel/.wrangler
 panel/.dev.vars
 panel/.panel-state.json
+panel/.wrangler-output.ndjson

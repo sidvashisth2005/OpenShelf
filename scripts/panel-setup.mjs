@@ -8,11 +8,11 @@
  * Creates the D1 database, applies the schema, generates the panel key (shown once)
  * and the Ed25519 signing key, stores them as Worker secrets, deploys, and writes
  * installer/panel.json so the next release links admin servers to this panel.
- * Re-running it redeploys; pass --rotate-key to issue a new panel key.
+ * Re-running it redeploys; `npm run panel:rotate-key` issues a new panel key.
  */
 import { spawnSync } from "node:child_process";
 import { createHash, generateKeyPairSync, randomBytes } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -21,20 +21,28 @@ const PANEL = path.join(ROOT, "panel");
 const STATE = path.join(PANEL, ".panel-state.json"); // gitignored: which secrets are already set
 const isWin = process.platform === "win32";
 
-function wrangler(args, { input, capture = true } = {}) {
+let panelKey;
+
+function wrangler(args, { input, capture = true, env } = {}) {
   const r = spawnSync("npx", ["wrangler", ...args], {
     cwd: PANEL,
     input,
+    env: { ...process.env, ...env },
     encoding: "utf8",
     shell: isWin,
     stdio: [input === undefined ? "inherit" : "pipe", capture ? "pipe" : "inherit", capture ? "pipe" : "inherit"],
   });
   if (r.status !== 0) {
-    console.error(`\nwrangler ${args.join(" ")} failed:\n${(r.stderr || "") + (r.stdout || "")}`);
+    console.error(`\nwrangler ${args.join(" ")} failed.`);
+    if (capture) console.error(`${r.stderr || ""}${r.stdout || ""}`);
+    if (panelKey) console.error("Your panel key above stays valid. Fix the problem and run `npm run panel:setup` again.");
     process.exit(1);
   }
   return `${r.stdout ?? ""}${r.stderr ?? ""}`;
 }
+
+/** Parses the JSON array in wrangler's output, ignoring any warnings printed around it. */
+const jsonArray = (out) => JSON.parse(out.slice(out.indexOf("["), out.lastIndexOf("]") + 1));
 
 const step = (t) => console.log(`\n\x1b[35m»\x1b[0m \x1b[1m${t}\x1b[0m`);
 
@@ -50,11 +58,11 @@ if (/not authenticated|You are not logged in/i.test(who)) {
 console.log("  Logged in.");
 
 step("Creating the D1 database (free)");
-const list = JSON.parse(wrangler(["d1", "list", "--json"]).replace(/^[^[]*/, ""));
+const list = jsonArray(wrangler(["d1", "list", "--json"]));
 let db = list.find((d) => d.name === "openshelf-panel");
 if (!db) {
   wrangler(["d1", "create", "openshelf-panel"]);
-  db = JSON.parse(wrangler(["d1", "list", "--json"]).replace(/^[^[]*/, "")).find((d) => d.name === "openshelf-panel");
+  db = jsonArray(wrangler(["d1", "list", "--json"])).find((d) => d.name === "openshelf-panel");
 }
 const dbId = db.uuid ?? db.database_id;
 const tomlPath = path.join(PANEL, "wrangler.toml");
@@ -65,8 +73,7 @@ console.log("  Schema applied.");
 
 step("Preparing keys");
 const state = existsSync(STATE) ? JSON.parse(readFileSync(STATE, "utf8")) : {};
-let panelKey;
-if (!state.publicKey || process.argv.includes("--rotate-key")) {
+if (!state.publicKey || (process.argv.includes("--rotate-key") || process.env.npm_config_rotate_key)) {
   panelKey = randomBytes(32).toString("base64url");
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
   const secrets = {
@@ -78,15 +85,26 @@ if (!state.publicKey || process.argv.includes("--rotate-key")) {
   state.publicKey = publicKey.export({ format: "jwk" }).x;
   writeFileSync(STATE, JSON.stringify(state, null, 2));
   console.log("  Secrets stored in Cloudflare.");
+  // Printed now, not at the end, so a failed deploy can never lose it.
+  console.log("\n\x1b[1mYour panel key (shown only now, store it in a password manager):\x1b[0m\n");
+  console.log(`  ${panelKey}\n`);
 } else {
-  console.log("  Keeping the existing keys (use --rotate-key for new ones).");
+  console.log("  Keeping the existing keys (`npm run panel:rotate-key` makes new ones).");
 }
 
 step("Deploying the panel");
-const out = wrangler(["deploy"]);
-const url = out.match(/https:\/\/[a-z0-9.-]+\.workers\.dev/)?.[0];
+// Not captured, so wrangler can ask you to pick a workers.dev subdomain the first time.
+// The deployed address is read from wrangler's machine-readable output file instead.
+const outFile = path.join(PANEL, ".wrangler-output.ndjson");
+rmSync(outFile, { force: true });
+wrangler(["deploy"], { capture: false, env: { WRANGLER_OUTPUT_FILE_PATH: outFile } });
+const records = existsSync(outFile)
+  ? readFileSync(outFile, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l))
+  : [];
+rmSync(outFile, { force: true });
+const url = records.flatMap((r) => (r.type === "deploy" ? (r.targets ?? []) : [])).find((t) => /\.workers\.dev\/?$/.test(t))?.replace(/\/$/, "");
 if (!url) {
-  console.error(out);
+  console.error("Deployed, but wrangler reported no workers.dev address. Check Workers & Pages in the Cloudflare dashboard.");
   process.exit(1);
 }
 state.url = url;
@@ -95,8 +113,4 @@ writeFileSync(path.join(ROOT, "installer", "panel.json"), `${JSON.stringify({ ur
 console.log(`  Live at ${url}`);
 console.log("  Wrote installer/panel.json: the next release links admin servers to this panel.");
 
-console.log(`\n\x1b[32mDone.\x1b[0m Open ${url}`);
-if (panelKey) {
-  console.log("\n\x1b[1mYour panel key (shown only now, store it in a password manager):\x1b[0m\n");
-  console.log(`  ${panelKey}\n`);
-}
+console.log(`\n\x1b[32mDone.\x1b[0m Open ${url}${panelKey ? " and sign in with the panel key printed above." : ""}`);

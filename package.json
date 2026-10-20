@@ -1,6 +1,6 @@
 {
   "name": "openshelf",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -15,7 +15,8 @@
     "test:e2e": "node tests/e2e/smoke.mjs",
     "bundle": "node scripts/build-bundle.mjs",
     "build:exe": "node scripts/build-exe.mjs",
-    "panel:setup": "node scripts/panel-setup.mjs"
+    "panel:setup": "node scripts/panel-setup.mjs",
+    "panel:rotate-key": "node scripts/panel-setup.mjs --rotate-key"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.10",

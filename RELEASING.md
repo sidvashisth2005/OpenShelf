@@ -20,7 +20,7 @@ The workflow checks that the tag matches `package.json`, runs typecheck, lint an
 
 If `installer/panel.json` exists (written by `npm run panel:setup`, see
 [INSTALL.md](INSTALL.md#3-set-up-the-super-admin-panel-platform-owner)), the bundle includes it and every server
-running that release reports to the panel. Commit it before you tag. After `panel:setup --rotate-key`, release
+running that release reports to the panel. Commit it before you tag. After `npm run panel:rotate-key`, release
 again so servers trust the new signing key.
 
 ## Update popups for existing users
