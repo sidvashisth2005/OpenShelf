@@ -94,9 +94,17 @@ need admin rights.
 | --- | --- |
 | <img src="docs/screenshots/setup.png" alt="Set up your server" width="420"> | **1. Set up your server.** The first time OpenShelf opens, you create the admin account. This page only opens on the PC where OpenShelf is installed, so nobody else can claim your server. |
 | <img src="docs/screenshots/server-settings.png" alt="Server settings" width="420"> | **2. Turn on "Share on my Wi-Fi".** In **Admin → Server settings**. OpenShelf restarts itself in the background. If Windows asks whether to allow it on private networks, choose **Allow**. You also choose who can join: **Invite only**, **Ask to join** (you approve each person) or **Open**. |
-| <img src="docs/screenshots/invites.png" alt="Invite links" width="420"> | **3. Create an invite link.** In **Admin → Invite links**: choose how many people can use it and when it expires, then copy the **same Wi-Fi** link and send it to your team. |
+| <img src="docs/screenshots/invites.png" alt="Invite links" width="420"> | **3. Create an invite link.** In **Admin → Invite links**: choose how many people can use it and when it expires, then click **Create link**, copy the **On the same Wi-Fi** link (it's shown only once) and send it to your team. |
 | <img src="docs/screenshots/signup.png" alt="Joining with an invite" width="420"> | **4. Teammates open the link** on any phone or laptop on the same Wi-Fi, create their account, and they're in. At sign-up they see, and agree once to, what the admin can access. |
 | <img src="docs/screenshots/admin-overview.png" alt="Admin dashboard" width="420"> | **5. Manage everything** from the admin dashboard: members, join requests, invite links, content moderation and the activity log. |
+
+### Joining as a member (nothing to install)
+
+1. Open the invite link on any phone or laptop on the **same Wi-Fi** as the server.
+2. Pick a username, enter your email and a password.
+3. Tick the box to accept the Terms (you're asked **once**, never again) and click **Create account**.
+
+Done. Use **Upload** to add files, and find them under **My content**.
 
 ---
 
@@ -123,9 +131,26 @@ need admin rights.
 | **Admin** | Whoever installed OpenShelf on their PC | Everything on their server: members, invites, join requests, settings, moderation, activity log. Members consent to this access once, at sign-up. |
 | **Super Admin** | The OpenShelf platform owner | Everything an admin can do, on every server. Disclosed in the [Terms](src/lib/legal.ts). |
 
-**Super Admin panel.** Servers that are online report to a free Super Admin panel (Cloudflare Workers + D1), and
-the platform owner can open any of them from there through a private, gated link. Setup takes three commands: see
-[INSTALL.md](INSTALL.md#3-set-up-the-super-admin-panel-platform-owner).
+## Super Admin panel (platform owner only)
+
+Servers that are online report to a free Super Admin panel (Cloudflare Workers + D1). From the panel, the platform
+owner sees every server, its members and content, and can open any server as Super Admin through a private, gated
+link. Admins and members never need to do anything for this.
+
+**One-time setup** (needs a free [Cloudflare account](https://dash.cloudflare.com/sign-up), Node.js and Git):
+
+```powershell
+git clone https://github.com/sidvashisth2005/OpenShelf.git
+cd OpenShelf
+npm install
+cd panel; npx wrangler login; cd ..     # click "Allow" in the browser
+npm run panel:setup                     # prints the panel address and your panel key (shown once: save it)
+```
+
+Then commit the `installer/panel.json` it writes and publish a release ([RELEASING.md](RELEASING.md)). Every server
+on that release links to your panel automatically. Open the panel address, sign in with your panel key, and click
+**Open live server** on any online server. Lost the key? Run `npm run panel:setup -- --rotate-key` and release
+again.
 
 > **Coming next:** members on other networks will be able to join over the internet. Teams on the same Wi-Fi keep
 > transferring locally at full speed.
