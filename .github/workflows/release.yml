@@ -1,0 +1,55 @@
+name: Release
+
+# Push a tag like v0.2.0 (matching package.json "version") to publish a release
+# with OpenShelf.exe + the app bundle. Notes come from RELEASE_NOTES.md; put
+# <!-- notify-users --> in it to show the in-app update popup. See RELEASING.md.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Check the tag matches package.json
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $VERSION"; exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm run bundle
+      - run: npm run build:exe
+
+      - name: Self-test the installer against the fresh bundle
+        shell: pwsh
+        env:
+          OPENSHELF_ADMIN_PASSWORD: ci-only-password-not-secret
+        run: |
+          $p = Start-Process dist\OpenShelf.exe -ArgumentList @('--yes','--dir',"$env:RUNNER_TEMP\os-install",'--app-zip','dist\openshelf-app.zip','--admin-email','ci@example.test','--no-shortcuts','--no-launch') -NoNewWindow -Wait -PassThru
+          if ($p.ExitCode -ne 0) { exit 1 }
+
+      - name: Publish the GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "OpenShelf ${GITHUB_REF_NAME#v}" \
+            --notes-file RELEASE_NOTES.md \
+            dist/OpenShelf.exe dist/openshelf-app.zip dist/openshelf-app.zip.sha256

@@ -56,7 +56,7 @@ const TAR = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.
 
 const c = (code, s) => `\x1b[${code}m${s}\x1b[0m`;
 let stepNo = 0;
-const TOTAL = 7;
+const TOTAL = 6;
 const step = (t) => console.log(`\n${c(35, `[${++stepNo}/${TOTAL}]`)} ${c(1, t)}`);
 const info = (t) => console.log(`  ${t}`);
 

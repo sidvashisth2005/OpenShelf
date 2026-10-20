@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+      - name: End-to-end smoke test (production server, embedded DB)
+        env:
+          E2E_ADMIN_EMAIL: ci-admin@example.test
+          E2E_ADMIN_PASSWORD: ci-only-password-not-secret
+        run: |
+          HASH=$(node -e "require('bcryptjs').hash(process.env.E2E_ADMIN_PASSWORD, 10).then(h => console.log(Buffer.from(h).toString('base64')))")
+          export EMBEDDED_DB=true PGLITE_DIR=/tmp/openshelf-db UPLOAD_DIR=/tmp/openshelf-uploads
+          export SUPER_ADMIN_EMAIL="$E2E_ADMIN_EMAIL" SUPER_ADMIN_PASSWORD_HASH_B64="$HASH"
+          npx next start -p 3000 > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:3000/api/health && break; sleep 1; done
+          E2E_BASE_URL=http://localhost:3000 npm run test:e2e || (cat server.log; exit 1)

@@ -4,6 +4,45 @@ An open-source content platform. Anyone can create an account and upload, publis
 config-defined **Super Admin** moderates the platform. Its powers are disclosed up front in the Terms of Service
 and Privacy Policy, and users consent to them once, at sign-up.
 
+## Install
+
+There are two ways to install OpenShelf on a PC.
+
+### Option 1: OpenShelf.exe (Windows, easiest)
+
+Download **`OpenShelf.exe`** from the [latest release](https://github.com/sidvashisth2005/OpenShelf/releases/latest)
+and run it. It takes a few minutes:
+
+1. It downloads Node.js and the app (about 60 MB) and verifies both against SHA-256 checksums.
+2. It installs them for your user under `%LOCALAPPDATA%\OpenShelf`. No admin rights are needed.
+3. It asks for an admin email and password. Only a bcrypt hash of the password is stored.
+4. It runs a self-test.
+5. It adds Desktop and Start Menu shortcuts and an uninstaller in *Apps & features*.
+6. It opens OpenShelf in your browser.
+
+OpenShelf only listens on `127.0.0.1`, so it can be reached from this PC only. Running the installer again
+updates an existing install and keeps your data. Windows SmartScreen may warn because the exe is not
+code-signed yet: choose *More info → Run anyway*.
+
+### Option 2: clone and run the setup script
+
+Needs [Node.js 20.9+](https://nodejs.org) (Windows: `winget install OpenJS.NodeJS.LTS`).
+
+```bash
+git clone https://github.com/sidvashisth2005/OpenShelf.git
+cd OpenShelf
+setup.cmd        # Windows   (macOS/Linux: ./setup.sh)
+npm start        # then open http://localhost:3000
+```
+
+The setup script installs dependencies, writes `.env.local` (it asks for the admin email and password and stores
+only a hash), prepares the embedded database, runs typecheck, lint and unit tests, and builds the app.
+
+### Updates
+
+The installed app checks GitHub Releases each time it opens. It shows a popup only for releases the
+maintainers mark as notable. See [RELEASING.md](RELEASING.md).
+
 ## Stack
 
 | Concern    | Choice |

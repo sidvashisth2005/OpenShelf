@@ -242,8 +242,12 @@ async function checkForUpdate() {
     return; // offline or GitHub unreachable: never block opening the app
   }
   const latest = String(release.tag_name || "").replace(/^v/i, "");
-  if (!latest || !newerThan(latest, current) || !NOTIFY_MARKER.test(release.body || "")) return;
-  if (readUpdateState().skipped === latest) return;
+  const dryRun = Boolean(process.env.OPENSHELF_UPDATE_DRY_RUN);
+  const decide = (msg) => dryRun && console.log(`update-check: ${msg}`);
+  if (!latest || !newerThan(latest, current)) return decide(`no popup (latest ${latest || "?"} is not newer than ${current})`);
+  if (!NOTIFY_MARKER.test(release.body || "")) return decide(`no popup (${latest} has no notify-users marker)`);
+  if (readUpdateState().skipped === latest) return decide(`no popup (${latest} was skipped by the user)`);
+  if (dryRun) return decide(`POPUP for ${latest}: ${highlights(release.body).replace(/\n/g, " | ")}`);
 
   const installer = (release.assets || []).find((a) => a.name === "OpenShelf.exe");
   const notes = highlights(release.body);
@@ -252,7 +256,6 @@ async function checkForUpdate() {
     `A new version of OpenShelf is available (you have ${current}).\n\n${notes}\n\n` +
       "Yes: update now (your data is kept)\nNo: remind me next time\nCancel: skip this version",
   );
-  if (process.env.OPENSHELF_UPDATE_DRY_RUN) return console.log(`update-check: offered ${latest}, answer=${choice}`);
   if (choice === "cancel") {
     writeFileSync(UPDATE_STATE, JSON.stringify({ skipped: latest }));
   } else if (choice === "yes") {
