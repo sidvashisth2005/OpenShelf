@@ -1,7 +1,8 @@
-## OpenShelf 0.1.1
+<!-- notify-users -->
+## OpenShelf 0.2.0: bring your team in
 
-- New OpenShelf logo: app icon, browser tab, installer, shortcuts and Apps & features
-- One-line PowerShell install with checksum verification (no SmartScreen prompt):
-  `irm https://raw.githubusercontent.com/sidvashisth2005/OpenShelf/main/install.ps1 | iex`
-- The installer exe now shows OpenShelf name, version and publisher details
-- Release pipeline ready for code signing
+- Your PC is now a server for your team: whoever installs OpenShelf becomes its admin
+- Share on your Wi-Fi: teammates on the same network join with an invite link, and files move at local speed
+- Invite links with expiry and use limits, "Ask to join" approvals, and Open / Invite-only modes
+- New admin dashboard: members, join requests, invite links, server settings
+- The installer no longer asks for credentials: you create your account in the browser

@@ -19,15 +19,28 @@ This guide covers the stack, configuration, architecture and tooling. To just in
 ```bash
 npm install
 cp .env.example .env.local
-npm run admin:hash          # prompts for the super admin password, prints SUPER_ADMIN_PASSWORD_HASH_B64=...
-# put SUPER_ADMIN_EMAIL and the printed SUPER_ADMIN_PASSWORD_HASH_B64 into .env.local
 npm run dev
 ```
 
-Open http://localhost:3000. The local database and uploads live in `./.data/` (git-ignored). Migrations are
-applied to it automatically.
+Open http://localhost:3000. A fresh database sends you to **`/setup`**, where you create the server's **admin**
+(owner) account and name the server. `/setup` only works once, and only from `localhost`. The local database and
+uploads live in `./.data/` (git-ignored). Migrations are applied automatically.
 
-Sign in at `/login` with `SUPER_ADMIN_EMAIL` and the password you hashed. The super admin lands on `/admin`.
+Optionally, configure the platform **super admin** too: run `npm run admin:hash`, then put `SUPER_ADMIN_EMAIL`
+and the printed `SUPER_ADMIN_PASSWORD_HASH_B64` into `.env.local`.
+
+## Servers, invites and Wi-Fi sharing
+
+- Each install is one **server** (`server_settings`, a single row created by `/setup`) with a **join mode**:
+  `invite` (the default; an invite link is required), `approval` (sign-ups become `pending` until the admin
+  approves them at `/admin/requests`) or `open`.
+- **Invite links** (`/join/<token>`) store only a SHA-256 of the token. They can expire and have a use limit. A
+  seat is used inside the sign-up transaction, so a single-use link can't be shared.
+- **Share on my Wi-Fi** writes `data/network.json`. The installed app's supervisor (`openshelf.mjs start`) watches
+  that file and restarts the server bound to `0.0.0.0` (or back to `127.0.0.1`). Invite pages list Wi-Fi
+  addresses first.
+- Over plain `http` (localhost or a LAN address), the session cookie is an ordinary `HttpOnly` cookie. Over HTTPS,
+  it's a `__Host-` `Secure` cookie.
 
 ## Super admin
 
@@ -48,12 +61,16 @@ Sign in at `/login` with `SUPER_ADMIN_EMAIL` and the password you hashed. The su
 
 Defined in [src/lib/rbac.ts](../src/lib/rbac.ts). Code checks **permissions**, never role names:
 
-| Permission | user | super_admin |
-| ---------- | :--: | :---------: |
-| `content:create`, `content:update:own`, `content:delete:own` | ✓ | ✓ |
-| `content:read:any`, `content:moderate:any`, `content:delete:any` | | ✓ |
-| `user:read:any`, `user:suspend`, `user:remove` | | ✓ |
-| `audit:read`, `admin:dashboard` | | ✓ |
+| Permission | user (member) | admin (server owner) | super_admin |
+| ---------- | :--: | :--: | :---------: |
+| `content:create`, `content:update:own`, `content:delete:own` | ✓ | ✓ | ✓ |
+| `content:read:any`, `content:moderate:any`, `content:delete:any` | | ✓ | ✓ |
+| `user:read:any`, `user:suspend`, `user:remove`, `user:approve` | | ✓ | ✓ |
+| `audit:read`, `admin:dashboard` | | ✓ | ✓ |
+| `server:manage`, `invite:manage` | | ✓ | ✓ |
+
+Ranks are `user` < `admin` < `super_admin`. Account actions require outranking the target (`outranks`), so the
+admin can manage members but can never suspend or remove the super admin, or themselves.
 
 There is deliberately no `content:update:any`. Moderators remove or restore content, but they never edit
 someone else's words.

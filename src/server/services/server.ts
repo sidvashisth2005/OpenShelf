@@ -88,16 +88,21 @@ export async function updateServerSettings(admin: CurrentUser, input: Record<str
 
 /** http://<lan-ip>:<port> addresses this PC can be reached at on the local network. */
 export function lanAddresses(port: string | number): string[] {
-  const out: string[] = [];
-  for (const list of Object.values(os.networkInterfaces())) {
+  // Virtual adapters (VMs, WSL, Docker) aren't reachable by other devices on the Wi-Fi.
+  const VIRTUAL = /virtualbox|vmware|vethernet|hyper-v|wsl|docker|loopback|bluetooth|tailscale|zerotier/i;
+  const rank = (name: string) => (/wi-?fi|wireless|wlan/i.test(name) ? 0 : /ethernet|^en|^eth/i.test(name) ? 1 : 2);
+  const found: { name: string; url: string }[] = [];
+  for (const [name, list] of Object.entries(os.networkInterfaces())) {
+    if (VIRTUAL.test(name)) continue;
     for (const a of list ?? []) {
       if (a.family !== "IPv4" || a.internal) continue;
       // Skip link-local (169.254.x.x): it means "no network", not a reachable address.
       if (a.address.startsWith("169.254.")) continue;
-      out.push(`http://${a.address}:${port}`);
+      found.push({ name, url: `http://${a.address}:${port}` });
     }
   }
-  return out;
+  // Wi-Fi first, then wired, then anything else.
+  return found.sort((x, y) => rank(x.name) - rank(y.name)).map((f) => f.url);
 }
 
 // ---------------------------------------------------------------- invites
