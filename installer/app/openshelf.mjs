@@ -14,7 +14,8 @@
  * Layout:  <install>/runtime (node) · <install>/app (this file) · <install>/data (kept on update)
  */
 import { execFile, spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, watchFile, writeFileSync } from "node:fs";
+import { createHash, generateKeyPairSync, randomBytes } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, renameSync, rmSync, watchFile, writeFileSync } from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -50,6 +51,14 @@ function writeConfig(cfg) {
     .join("\n");
   writeFileSync(CONFIG_FILE, `# OpenShelf configuration (written by the installer)\n${body}\n`);
 }
+
+const appVersion = () => {
+  try {
+    return readFileSync(path.join(APP_DIR, "VERSION"), "utf8").trim();
+  } catch {
+    return "";
+  }
+};
 
 const portOf = (cfg) => Number(process.env.OPENSHELF_PORT || cfg.PORT || DEFAULT_PORT);
 
@@ -155,6 +164,109 @@ async function configure() {
   console.log(`Configured: port ${cfg.PORT}`);
 }
 
+// ---------------------------------------------------------------------------- Super Admin panel link
+
+const NODE_KEY_FILE = path.join(INSTALL_DIR, "data", "node-key.json");
+const TUNNEL_FILE = path.join(DATA_DIR, "tunnel.json");
+
+/** Panel address + public key: app/panel.json (shipped with releases) or env overrides. */
+function panelConfig() {
+  let cfg = {};
+  try {
+    cfg = JSON.parse(readFileSync(path.join(APP_DIR, "panel.json"), "utf8"));
+  } catch {
+    // no panel configured for this build
+  }
+  const url = process.env.PANEL_URL || cfg.url;
+  const publicKey = process.env.PANEL_PUBLIC_KEY || cfg.publicKey;
+  return url && publicKey ? { url, publicKey } : null;
+}
+
+/** This server's identity towards the panel, created once and kept with the data. */
+function ensureNodeIdentity() {
+  try {
+    return JSON.parse(readFileSync(NODE_KEY_FILE, "utf8"));
+  } catch {
+    const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+    const identity = {
+      nodeId: randomBytes(18).toString("base64url"),
+      publicKey: publicKey.export({ format: "jwk" }).x,
+      privateKey: privateKey.export({ format: "der", type: "pkcs8" }).toString("base64"),
+      gateSecret: randomBytes(32).toString("base64url"),
+    };
+    mkdirSync(path.dirname(NODE_KEY_FILE), { recursive: true });
+    writeFileSync(NODE_KEY_FILE, JSON.stringify(identity), { mode: 0o600 });
+    return identity;
+  }
+}
+
+/** Downloads cloudflared once (verified against GitHub's published SHA-256) and returns its path. */
+async function ensureCloudflared() {
+  if (process.env.CLOUDFLARED_PATH) return process.env.CLOUDFLARED_PATH;
+  if (process.platform !== "win32") return null;
+  const exe = path.join(INSTALL_DIR, "runtime", "cloudflared.exe");
+  if (existsSync(exe)) return exe;
+  const api = await fetch("https://api.github.com/repos/cloudflare/cloudflared/releases/latest", {
+    headers: { "User-Agent": "OpenShelf", Accept: "application/vnd.github+json" },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!api.ok) throw new Error(`GitHub API ${api.status}`);
+  const release = await api.json();
+  const asset = release.assets?.find((a) => a.name === "cloudflared-windows-amd64.exe");
+  const expected = (asset?.digest ?? "").replace(/^sha256:/, "") ||
+    (release.body ?? "").match(/cloudflared-windows-amd64\.exe:\s*([a-f0-9]{64})/)?.[1];
+  if (!asset || !expected) throw new Error("cloudflared release has no checksum");
+  const res = await fetch(asset.browser_download_url, { signal: AbortSignal.timeout(300_000) });
+  if (!res.ok) throw new Error(`cloudflared download ${res.status}`);
+  const bytes = Buffer.from(await res.arrayBuffer());
+  const actual = createHash("sha256").update(bytes).digest("hex");
+  if (actual !== expected) throw new Error("cloudflared checksum mismatch");
+  writeFileSync(`${exe}.part`, bytes);
+  renameSync(`${exe}.part`, exe);
+  return exe;
+}
+
+/**
+ * Keeps a Cloudflare quick tunnel open while this PC is online, so the Super Admin
+ * can reach the server through the panel. The URL is written to TUNNEL_FILE for the
+ * app's reporting agent; requests through it are gated in src/proxy.ts.
+ */
+function runTunnel(port, onPid) {
+  let stopped = false;
+  let proc;
+  const loop = async () => {
+    if (stopped) return;
+    try {
+      const exe = await ensureCloudflared();
+      if (!exe) return;
+      proc = spawn(exe, ["tunnel", "--url", `http://127.0.0.1:${port}`, "--no-autoupdate"], {
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      });
+      onPid(proc.pid);
+      const onData = (d) => {
+        const m = String(d).match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
+        if (m) writeFileSync(TUNNEL_FILE, JSON.stringify({ url: m[0], since: Date.now() }));
+      };
+      proc.stdout.on("data", onData);
+      proc.stderr.on("data", onData);
+      proc.on("exit", () => {
+        rmSync(TUNNEL_FILE, { force: true });
+        onPid(undefined);
+        if (!stopped) setTimeout(loop, 30_000); // offline or dropped: try again shortly
+      });
+    } catch {
+      if (!stopped) setTimeout(loop, 60_000);
+    }
+  };
+  loop();
+  return () => {
+    stopped = true;
+    proc?.kill();
+    rmSync(TUNNEL_FILE, { force: true });
+  };
+}
+
 const NETWORK_FILE = path.join(DATA_DIR, "network.json");
 
 /** Whether the admin turned on "Share on my Wi-Fi" (written by the app's Server settings). */
@@ -172,6 +284,25 @@ function lanEnabled() {
  */
 async function start() {
   mkdirSync(DATA_DIR, { recursive: true });
+  const panel = panelConfig();
+  const pids = { supervisor: process.pid };
+  const savePids = () => writeFileSync(PID_FILE, JSON.stringify(pids));
+  const panelEnv = {};
+  let stopTunnel = () => {};
+  if (panel) {
+    const id = ensureNodeIdentity();
+    Object.assign(panelEnv, {
+      PANEL_URL: panel.url,
+      PANEL_PUBLIC_KEY: panel.publicKey,
+      OPENSHELF_NODE_KEY_FILE: NODE_KEY_FILE,
+      OPENSHELF_TUNNEL_FILE: TUNNEL_FILE,
+      OPENSHELF_GATE_SECRET: id.gateSecret,
+    });
+    stopTunnel = runTunnel(portOf(readConfig()), (pid) => {
+      pids.tunnel = pid;
+      savePids();
+    });
+  }
   let child;
   let lan = false;
   let restarting = false;
@@ -180,16 +311,18 @@ async function start() {
     lan = lanEnabled();
     child = spawn(process.execPath, [fileURLToPath(import.meta.url), "serve"], {
       cwd: APP_DIR,
-      env: { ...process.env, OPENSHELF_BIND: lan ? "0.0.0.0" : "127.0.0.1" },
+      env: { ...process.env, ...panelEnv, OPENSHELF_VERSION: appVersion(), OPENSHELF_BIND: lan ? "0.0.0.0" : "127.0.0.1" },
       stdio: "inherit",
       windowsHide: true,
     });
-    writeFileSync(PID_FILE, JSON.stringify({ supervisor: process.pid, server: child.pid }));
+    pids.server = child.pid;
+    savePids();
     child.on("exit", (code) => {
       if (restarting) {
         restarting = false;
         return launch();
       }
+      stopTunnel();
       rmSync(PID_FILE, { force: true });
       process.exit(code ?? 0);
     });
@@ -205,6 +338,7 @@ async function start() {
   for (const sig of ["SIGINT", "SIGTERM"]) {
     process.on(sig, () => {
       child?.kill();
+      stopTunnel();
       rmSync(PID_FILE, { force: true });
       process.exit(0);
     });
@@ -380,7 +514,7 @@ function stop() {
   let pids;
   try {
     const p = JSON.parse(raw);
-    pids = typeof p === "number" ? [p] : [p.server, p.supervisor];
+    pids = typeof p === "number" ? [p] : [p.tunnel, p.server, p.supervisor];
   } catch {
     pids = [Number(raw)];
   }

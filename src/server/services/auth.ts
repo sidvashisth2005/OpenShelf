@@ -7,6 +7,7 @@ import type { Role } from "@/lib/rbac";
 import { fieldErrors, loginSchema, signupSchema, type FieldErrors } from "@/lib/validation";
 import { audit } from "@/server/audit";
 import { checkHuman } from "@/server/bot-check";
+import { PANEL_SUPER_ADMIN_EMAIL } from "@/server/panel/super-admin";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
 import { createSession } from "@/server/auth/session";
 import { getDb, schema } from "@/server/db";
@@ -32,7 +33,7 @@ export async function signup(input: Record<string, unknown>): Promise<AuthResult
   const botError = await checkHuman(input, meta.ip);
   if (botError) return { ok: false, error: botError };
   // The super admin account comes from config only, never from signup.
-  if (superAdminConfig()?.email === email) {
+  if (superAdminConfig()?.email === email || email === PANEL_SUPER_ADMIN_EMAIL) {
     return { ok: false, fieldErrors: { email: "This email can't be used to register." } };
   }
 

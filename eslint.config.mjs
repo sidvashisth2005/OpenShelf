@@ -13,6 +13,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "dist/**",
+    "panel/**",
   ]),
   {
     // Node single-executable apps must be CommonJS, so the installer uses require().

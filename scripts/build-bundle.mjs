@@ -34,6 +34,8 @@ if (existsSync(path.join(ROOT, "public"))) copy(path.join(ROOT, "public"), path.
 copy(path.join(ROOT, "drizzle"), path.join(OUT, "drizzle"));
 copy(path.join(ROOT, "installer", "app", "openshelf.mjs"), path.join(OUT, "openshelf.mjs"));
 copy(path.join(ROOT, "installer", "openshelf.ico"), path.join(OUT, "openshelf.ico"));
+// Super Admin panel address + public key (written by `npm run panel:setup`).
+if (existsSync(path.join(ROOT, "installer", "panel.json"))) copy(path.join(ROOT, "installer", "panel.json"), path.join(OUT, "panel.json"));
 
 // Turbopack references serverExternalPackages through hashed aliases in .next/node_modules
 // (e.g. "bcryptjs-ee66c2bdc904f2cf" -> ../../node_modules/bcryptjs). Those are symlinks, or

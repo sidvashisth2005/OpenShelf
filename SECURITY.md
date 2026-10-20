@@ -30,7 +30,8 @@ How OpenShelf handles common web-app risks, and where each control lives.
 | 16 | Upload type checks | ✅ | MIME + extension allowlist, size limit (checked before the body is buffered), and a **magic-byte check** of the file's real contents, so a renamed `.exe` is rejected. |
 | 17 | Security review | ✅ | Reviewed against this list. Unit and end-to-end suites cover the controls (`npm test`, `npm run test:e2e`). |
 | 18 | Security headers | ✅ | Per-request **nonce CSP** (`script-src 'nonce-…' 'strict-dynamic'`, `object-src 'none'`, `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, COOP/CORP, and HSTS on HTTPS. |
-| 19 | Webhook signatures | N/A | OpenShelf receives no webhooks and has no payments. If you add them, verify the provider's signature (for example Stripe's `constructEvent`) before trusting the body. |
+| 19 | Super Admin remote access | ✅ | Only when a release ships `installer/panel.json`. Heartbeats are signed with the server's Ed25519 key, pinned by the panel on first contact. The tunnel answers 404 without the `sa_gate` HMAC cookie. That cookie is set only by `/api/sa/login`, which needs a 5-minute, single-use, server-addressed token signed by the panel's Ed25519 key. The panel key is stored only as a SHA-256 hash, and the panel's signing key lives in Cloudflare secrets. Heartbeats carry metadata only, never file contents, and are disclosed in the Terms and Privacy Policy. Each remote sign-in is audit-logged. |
+| 20 | Webhook signatures | N/A | OpenShelf receives no webhooks and has no payments. If you add them, verify the provider's signature (for example Stripe's `constructEvent`) before trusting the body. |
 
 ## Passwords and sessions
 

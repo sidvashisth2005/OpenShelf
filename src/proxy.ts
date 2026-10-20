@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { GATE_COOKIE, gateCookieValid } from "@/server/panel/node-identity";
 import { rateLimit } from "@/server/rate-limit";
 
 /**
@@ -44,6 +45,16 @@ function tooMany(retryAfterSec: number) {
 }
 
 export function proxy(request: NextRequest) {
+  // The public tunnel (used only by the Super Admin panel) is closed to everyone else:
+  // only the token login is reachable until the browser holds a valid gate cookie.
+  const host = (request.headers.get("host") ?? "").toLowerCase();
+  if (host.endsWith(".trycloudflare.com")) {
+    const isLogin = request.nextUrl.pathname === "/api/sa/login";
+    if (!isLogin && !gateCookieValid(request.cookies.get(GATE_COOKIE)?.value, process.env.OPENSHELF_GATE_SECRET)) {
+      return new NextResponse("Not found", { status: 404 });
+    }
+  }
+
   const proto = request.headers.get("x-forwarded-proto") ?? request.nextUrl.protocol.replace(":", "");
   if (forceHttps && proto === "http") {
     const url = request.nextUrl.clone();

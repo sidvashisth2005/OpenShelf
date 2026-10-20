@@ -14,7 +14,8 @@
     "admin:hash": "tsx scripts/hash-password.ts",
     "test:e2e": "node tests/e2e/smoke.mjs",
     "bundle": "node scripts/build-bundle.mjs",
-    "build:exe": "node scripts/build-exe.mjs"
+    "build:exe": "node scripts/build-exe.mjs",
+    "panel:setup": "node scripts/panel-setup.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.10",

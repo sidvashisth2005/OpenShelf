@@ -46,3 +46,7 @@ next-env.d.ts
 
 # build artifacts (release bundle, installer exe)
 /dist
+panel/node_modules
+panel/.wrangler
+panel/.dev.vars
+panel/.panel-state.json
