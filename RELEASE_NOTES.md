@@ -1,7 +1,7 @@
-## OpenShelf 0.1.0
+## OpenShelf 0.1.1
 
-First public release.
-
-- Upload, publish and manage images, video, audio, PDFs and notes (public, unlisted or private)
-- Super admin with moderation, user management and an activity log, all disclosed in the Terms
-- One-file Windows installer (`OpenShelf.exe`) or `setup.cmd` / `setup.sh` from a clone
+- New OpenShelf logo: app icon, browser tab, installer, shortcuts and Apps & features
+- One-line PowerShell install with checksum verification (no SmartScreen prompt):
+  `irm https://raw.githubusercontent.com/sidvashisth2005/OpenShelf/main/install.ps1 | iex`
+- The installer exe now shows OpenShelf name, version and publisher details
+- Release pipeline ready for code signing

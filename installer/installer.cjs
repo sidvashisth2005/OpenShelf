@@ -318,7 +318,7 @@ New-Item -ItemType Directory -Force -Path $programs | Out-Null
 function Link($path, $target, $arguments, $desc) {
   $l = $ws.CreateShortcut($path)
   $l.TargetPath = $target; $l.Arguments = $arguments; $l.WorkingDirectory = $dir
-  $l.IconLocation = "$dir\\runtime\\node.exe,0"; $l.Description = $desc; $l.Save()
+  $l.IconLocation = "$dir\\app\\openshelf.ico,0"; $l.Description = $desc; $l.Save()
 }
 $wscript = "$env:SystemRoot\\System32\\wscript.exe"
 Link ([IO.Path]::Combine([Environment]::GetFolderPath("Desktop"), "OpenShelf.lnk")) $wscript """$dir\\OpenShelf.vbs""" "Open OpenShelf"
@@ -332,7 +332,7 @@ Set-ItemProperty $key DisplayName "OpenShelf"
 Set-ItemProperty $key DisplayVersion $env:OS_VERSION
 Set-ItemProperty $key Publisher "OpenShelf contributors"
 Set-ItemProperty $key InstallLocation $dir
-Set-ItemProperty $key DisplayIcon "$dir\\runtime\\node.exe"
+Set-ItemProperty $key DisplayIcon "$dir\\app\\openshelf.ico"
 Set-ItemProperty $key URLInfoAbout "https://github.com/${REPO}"
 Set-ItemProperty $key UninstallString "$ps -NoProfile -ExecutionPolicy Bypass -File ""$dir\\uninstall.ps1"""
 Set-ItemProperty $key NoModify 1 -Type DWord

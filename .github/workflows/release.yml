@@ -13,6 +13,9 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    env:
+      # Empty unless the repository secret exists; gates the optional signing step.
+      CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -44,6 +47,28 @@ jobs:
           $p = Start-Process dist\OpenShelf.exe -ArgumentList @('--yes','--dir',"$env:RUNNER_TEMP\os-install",'--app-zip','dist\openshelf-app.zip','--admin-email','ci@example.test','--no-shortcuts','--no-launch') -NoNewWindow -Wait -PassThru
           if ($p.ExitCode -ne 0) { exit 1 }
 
+      # Optional Authenticode signing. It runs only when the repository has the secrets
+      # WINDOWS_CERT_PFX_BASE64 + WINDOWS_CERT_PASSWORD (see RELEASING.md > Code signing).
+      - name: Sign OpenShelf.exe
+        if: ${{ env.CERT_PFX != '' }}
+        shell: pwsh
+        env:
+          CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "cert.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_PFX))
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1
+          & $signtool.FullName sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /d "OpenShelf Installer" /f $pfx /p $env:CERT_PASSWORD dist\OpenShelf.exe
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Remove-Item $pfx
+          & $signtool.FullName verify /pa dist\OpenShelf.exe
+
+      - name: Write the installer checksum (after signing)
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash dist\OpenShelf.exe -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Path dist\OpenShelf.exe.sha256 -Value "$hash  OpenShelf.exe" -NoNewline -Encoding ascii
+
       - name: Publish the GitHub release
         shell: bash
         env:
@@ -52,4 +77,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             --title "OpenShelf ${GITHUB_REF_NAME#v}" \
             --notes-file RELEASE_NOTES.md \
-            dist/OpenShelf.exe dist/openshelf-app.zip dist/openshelf-app.zip.sha256
+            dist/OpenShelf.exe dist/OpenShelf.exe.sha256 dist/openshelf-app.zip dist/openshelf-app.zip.sha256

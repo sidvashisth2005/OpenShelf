@@ -38,3 +38,26 @@ release text.
 In the popup, users choose **Yes** (download the new `OpenShelf.exe` and update; data is kept), **No** (ask
 again next time) or **Cancel** (skip this version). Setting `UPDATE_CHECK=false` in
 `%LOCALAPPDATA%\OpenShelf\data\config.env` turns the check off.
+
+## Code signing (removes the SmartScreen warning)
+
+Windows SmartScreen warns about downloaded `.exe` files that aren't Authenticode-signed by a publisher with
+reputation. The PowerShell one-liner (`install.ps1`) avoids the prompt today: files fetched by
+`Invoke-WebRequest` don't carry the browser's "downloaded from the internet" mark, and the script verifies the
+SHA-256 before running anything. To make the **downloaded exe** trusted too, sign it:
+
+1. **Get a code-signing certificate.** Options, cheapest first:
+   - [SignPath Foundation](https://signpath.org): free signing for open-source projects. You apply and they review.
+   - [Azure Artifact Signing](https://learn.microsoft.com/azure/trusted-signing/) (formerly Trusted Signing): a
+     low monthly fee, with identity verification by Microsoft.
+   - An OV certificate from a CA (Sectigo, DigiCert, SSL.com…), usually delivered on a hardware token or as a
+     cloud HSM.
+2. **For a `.pfx` certificate,** add two repository secrets (*Settings → Secrets and variables → Actions*):
+   - `WINDOWS_CERT_PFX_BASE64`: the output of `[Convert]::ToBase64String([IO.File]::ReadAllBytes("cert.pfx"))`
+   - `WINDOWS_CERT_PASSWORD`: the `.pfx` password
+
+   The release workflow then signs `OpenShelf.exe` automatically (timestamped, SHA-256) before it computes the
+   checksum. SignPath and Azure have their own GitHub Actions; add them at the same point in
+   `release.yml`.
+3. A signed exe builds SmartScreen reputation as people download it. The warning disappears once enough
+   installs accumulate, so keep signing every release with the same certificate.

@@ -6,12 +6,24 @@ and Privacy Policy, and users consent to them once, at sign-up.
 
 ## Install
 
-There are two ways to install OpenShelf on a PC.
+There are two ways to install OpenShelf on a PC: the Windows installer (Option 1), or cloning the repository
+(Option 2).
 
-### Option 1: OpenShelf.exe (Windows, easiest)
+### Option 1: Windows installer
 
-Download **`OpenShelf.exe`** from the [latest release](https://github.com/sidvashisth2005/OpenShelf/releases/latest)
-and run it. It takes a few minutes:
+**Recommended: one command, no SmartScreen prompt.** Open PowerShell and run:
+
+```powershell
+irm https://raw.githubusercontent.com/sidvashisth2005/OpenShelf/main/install.ps1 | iex
+```
+
+This downloads `OpenShelf.exe` from the latest release, checks it against the published SHA-256, and runs it.
+
+**Or download the exe:** get **`OpenShelf.exe`** from the
+[latest release](https://github.com/sidvashisth2005/OpenShelf/releases/latest) and run it. Until releases are
+code-signed, Windows SmartScreen shows a warning for downloaded exes: choose *More info → Run anyway*.
+
+Either way, the installer takes a few minutes:
 
 1. It downloads Node.js and the app (about 60 MB) and verifies both against SHA-256 checksums.
 2. It installs them for your user under `%LOCALAPPDATA%\OpenShelf`. No admin rights are needed.
@@ -21,8 +33,7 @@ and run it. It takes a few minutes:
 6. It opens OpenShelf in your browser.
 
 OpenShelf only listens on `127.0.0.1`, so it can be reached from this PC only. Running the installer again
-updates an existing install and keeps your data. Windows SmartScreen may warn because the exe is not
-code-signed yet: choose *More info → Run anyway*.
+updates an existing install and keeps your data.
 
 ### Option 2: clone and run the setup script
 
