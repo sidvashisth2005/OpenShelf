@@ -12,7 +12,7 @@
  *
  * Layout:  <install>/runtime (node) · <install>/app (this file) · <install>/data (kept on update)
  */
-import { spawn, execFile } from "node:child_process";
+import { execFile, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import os from "node:os";
@@ -75,7 +75,11 @@ function freePort(preferred) {
         any.close(() => resolve(port));
       });
     });
-    srv.listen(preferred, "127.0.0.1", () => srv.close(() => resolve(preferred)));
+    // Read the bound port back: with preferred = 0 the OS picks one.
+    srv.listen(preferred, "127.0.0.1", () => {
+      const { port } = srv.address();
+      srv.close(() => resolve(port));
+    });
   });
 }
 
@@ -164,6 +168,102 @@ async function open() {
     }
   }
   openBrowser(url);
+  await checkForUpdate();
+}
+
+// ---------------------------------------------------------------------------- updates
+
+/**
+ * Release-driven update notice. Only *published GitHub Releases* are
+ * considered (never plain commits), and a popup is shown only when the
+ * release notes contain the opt-in marker  <!-- notify-users -->  so the
+ * maintainers decide which releases are worth interrupting people for.
+ */
+const UPDATE_REPO = "sidvashisth2005/OpenShelf";
+const NOTIFY_MARKER = /<!--\s*notify-users\s*-->/i;
+const UPDATE_STATE = path.join(INSTALL_DIR, "data", "update.json");
+
+/** Compares dotted versions ("0.10.1" > "0.9.3"); a leading "v" is ignored. */
+export function newerThan(a, b) {
+  const parse = (v) => String(v).replace(/^v/i, "").split(/[.+-]/).slice(0, 3).map((n) => Number.parseInt(n, 10) || 0);
+  const [x, y] = [parse(a), parse(b)];
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i];
+  return false;
+}
+
+/** Plain-text highlights from markdown release notes (marker and headings stripped). */
+export function highlights(body, maxLines = 6) {
+  return String(body || "")
+    .replace(NOTIFY_MARKER, "")
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^#+\s*/, "").replace(/^\s*[-*]\s+/, "• ").replace(/[*_`]/g, "").trim())
+    .filter(Boolean)
+    .slice(0, maxLines)
+    .join("\n");
+}
+
+function readUpdateState() {
+  try {
+    return JSON.parse(readFileSync(UPDATE_STATE, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+/** Shows a Yes/No/Cancel dialog on Windows; returns "yes" | "no" | "cancel". */
+function ask(title, message) {
+  if (process.platform !== "win32") return "no";
+  const script =
+    "Add-Type -AssemblyName System.Windows.Forms;" +
+    "$r = [System.Windows.Forms.MessageBox]::Show($env:OS_MSG, $env:OS_TITLE, 'YesNoCancel', 'Information');" +
+    "Write-Output $r";
+  const r = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+    env: { ...process.env, OS_MSG: message, OS_TITLE: title },
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  return (r.stdout || "").trim().toLowerCase() || "no";
+}
+
+async function checkForUpdate() {
+  const cfg = readConfig();
+  if (cfg.UPDATE_CHECK === "false") return;
+  const current = readFileSync(path.join(APP_DIR, "VERSION"), "utf8").trim();
+  let release;
+  try {
+    const url = process.env.OPENSHELF_UPDATE_URL || `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`;
+    const res = await fetch(url, {
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "OpenShelf-update-check" },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) return;
+    release = await res.json();
+  } catch {
+    return; // offline or GitHub unreachable: never block opening the app
+  }
+  const latest = String(release.tag_name || "").replace(/^v/i, "");
+  if (!latest || !newerThan(latest, current) || !NOTIFY_MARKER.test(release.body || "")) return;
+  if (readUpdateState().skipped === latest) return;
+
+  const installer = (release.assets || []).find((a) => a.name === "OpenShelf.exe");
+  const notes = highlights(release.body);
+  const choice = ask(
+    `${release.name || `OpenShelf ${latest}`} is available`,
+    `A new version of OpenShelf is available (you have ${current}).\n\n${notes}\n\n` +
+      "Yes: update now (your data is kept)\nNo: remind me next time\nCancel: skip this version",
+  );
+  if (process.env.OPENSHELF_UPDATE_DRY_RUN) return console.log(`update-check: offered ${latest}, answer=${choice}`);
+  if (choice === "cancel") {
+    writeFileSync(UPDATE_STATE, JSON.stringify({ skipped: latest }));
+  } else if (choice === "yes") {
+    if (!installer) return openBrowser(release.html_url || `https://github.com/${UPDATE_REPO}/releases/latest`);
+    const dest = path.join(os.tmpdir(), `OpenShelf-${latest}.exe`);
+    const res = await fetch(installer.browser_download_url);
+    if (!res.ok) return openBrowser(release.html_url);
+    writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
+    // The installer stops this server, swaps runtime + app and keeps data/.
+    spawn("cmd.exe", ["/c", "start", "", dest], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+  }
 }
 
 function stop() {
@@ -219,13 +319,17 @@ async function selftest() {
   }
 }
 
-const commands = { configure, start, open, stop, selftest };
-const cmd = commands[process.argv[2]];
-if (!cmd) {
-  console.error(`Usage: openshelf.mjs <${Object.keys(commands).join("|")}>`);
-  process.exit(2);
+// Run the CLI only when executed directly (tests import the helpers above).
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  const commands = { configure, start, open, stop, selftest, "check-update": checkForUpdate };
+  const cmd = commands[process.argv[2]];
+  if (!cmd) {
+    console.error(`Usage: openshelf.mjs <${Object.keys(commands).join("|")}>`);
+    process.exit(2);
+  }
+  Promise.resolve(cmd()).catch((err) => {
+    console.error(err instanceof Error ? err.message : err);
+    process.exit(1);
+  });
 }
-Promise.resolve(cmd()).catch((err) => {
-  console.error(err instanceof Error ? err.message : err);
-  process.exit(1);
-});
