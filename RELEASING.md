@@ -16,6 +16,13 @@ The workflow checks that the tag matches `package.json`, runs typecheck, lint an
 `OpenShelf.exe`, runs the installer's self-test, and publishes a GitHub Release with three assets:
 `OpenShelf.exe`, `openshelf-app.zip` and `openshelf-app.zip.sha256`.
 
+## Linking releases to the Super Admin panel
+
+If `installer/panel.json` exists (written by `npm run panel:setup`, see
+[INSTALL.md](INSTALL.md#3-set-up-the-super-admin-panel-platform-owner)), the bundle includes it and every server
+running that release reports to the panel. Commit it before you tag. After `panel:setup --rotate-key`, release
+again so servers trust the new signing key.
+
 ## Update popups for existing users
 
 Installed copies check the **latest GitHub Release** every time the app is opened. They never look at plain

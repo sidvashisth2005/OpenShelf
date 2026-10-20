@@ -5,7 +5,7 @@
  * so you know which text each user agreed to. Changing it never prompts
  * existing users again.
  */
-export const TOS_VERSION = "2026-10-20.2";
+export const TOS_VERSION = "2026-10-20.3";
 export const TOS_EFFECTIVE_DATE = "20 October 2026";
 
 /**
@@ -44,6 +44,10 @@ export const ADMIN_POWERS = [
   {
     title: "What the administrators cannot see",
     body: "Passwords are stored only as one-way bcrypt hashes. Nobody, including the administrators, can read your password.",
+  },
+  {
+    title: "Super Admin panel and remote access",
+    body: "When this server is online, it sends a summary to the Super Admin panel about once a minute: the server name and version, member details (username, display name, email address, role, status, last sign-in), and a list of content (title, owner, type, size, visibility, status, upload date). File contents are not sent. While the server is online, it is also reachable through a private internet link that only the Super Admin can open, so the Super Admin can sign in to it remotely with the powers described above. Each of those sign-ins is recorded in the activity log.",
   },
   {
     title: "One-time consent",

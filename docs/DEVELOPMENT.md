@@ -57,6 +57,31 @@ and the printed `SUPER_ADMIN_PASSWORD_HASH_B64` into `.env.local`.
   `SESSION_TTL_DAYS` (default 7).
 - Sign-up rejects the admin's email and staff-like usernames (`admin`, `root`, `moderator`, …).
 
+## Super Admin panel (`panel/`)
+
+A free Cloudflare Worker + D1 app that lists every admin server that's online and lets the Super Admin open
+any of them. Setup for the owner is in [INSTALL.md](../INSTALL.md#3-set-up-the-super-admin-panel-platform-owner).
+
+- **Linking.** `npm run panel:setup` writes `installer/panel.json` (panel URL + the panel's Ed25519 public key).
+  The release bundle ships it, and the supervisor (`installer/app/openshelf.mjs start`) passes it to the app as
+  `PANEL_URL` / `PANEL_PUBLIC_KEY`. Without that file, nothing below runs.
+- **Node identity.** Each install creates an Ed25519 key pair once, kept with its data
+  (`src/server/panel/node-identity.ts`). The panel pins the key on first contact (TOFU), so another machine
+  can't impersonate a server.
+- **Heartbeat.** Every minute, `src/server/panel/agent.ts` (started from `src/instrumentation.ts`) posts a signed
+  summary: server name and version, members, content metadata (never file contents) and the current tunnel URL.
+- **Remote access.** While a panel is configured, the supervisor keeps a Cloudflare quick tunnel
+  (`cloudflared`, downloaded and SHA-256-verified once) open to the local server. `src/proxy.ts` answers 404 on
+  `*.trycloudflare.com` unless the request carries the `sa_gate` cookie, so the tunnel is useless to anyone
+  else.
+- **Sign-in.** **Open live server** in the panel issues a 5-minute, single-use token signed by the panel key and
+  addressed to that node. `/api/sa/login` verifies it, signs in the Super Admin (`ensurePanelSuperAdmin`) and
+  sets the gate cookie.
+- **Panel auth.** One panel key, stored in Cloudflare only as a SHA-256 hash. Panel sessions are HMAC-signed
+  cookies, and form posts are checked against the `Host` header.
+- **Local development.** `cd panel && npx wrangler dev`, then start an app with `PANEL_URL=http://127.0.0.1:8787`
+  and `PANEL_PUBLIC_KEY=<x of the dev signing key>`.
+
 ## Roles and permissions (RBAC)
 
 Defined in [src/lib/rbac.ts](../src/lib/rbac.ts). Code checks **permissions**, never role names:
@@ -115,9 +140,12 @@ src/
     db/                   Drizzle schema + client
     services/             business logic (auth, content, users/admin)
     storage/              storage driver
+    panel/                link to the Super Admin panel (node identity, heartbeat agent)
     audit.ts              audit log writer
 drizzle/                  SQL migrations
-scripts/                  admin:hash, db:migrate
+installer/                Windows installer (OpenShelf.exe) and the supervisor (app/openshelf.mjs)
+panel/                    Super Admin panel: Cloudflare Worker + D1
+scripts/                  admin:hash, db:migrate, panel:setup, release bundle
 ```
 
 ## Database schema
@@ -165,11 +193,12 @@ non-root user with uploads on the `uploads` volume. Put a TLS-terminating revers
 | `npm run dev` | Dev server (auto-migrates the local PGlite database) |
 | `npm run build` / `npm start` | Production build / server |
 | `npm test` | Unit tests (RBAC, validation, upload allowlist) |
-| `npm run test:e2e` | 72-check end-to-end smoke test against a running server with a **fresh** database (set `E2E_BASE_URL`, `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`) |
+| `npm run test:e2e` | End-to-end smoke test against a running server with a **fresh** database (set `E2E_BASE_URL`, `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`) |
 | `npm run typecheck` / `npm run lint` | Static checks |
 | `npm run db:generate` | Generate a migration after changing `schema.ts` |
 | `npm run db:migrate` | Apply migrations (`DATABASE_URL`, or local PGlite) |
 | `npm run admin:hash` | Produce `SUPER_ADMIN_PASSWORD_HASH_B64` |
+| `npm run panel:setup` | Create or redeploy the Super Admin panel on Cloudflare (`--rotate-key` for a new key) |
 
 ## Production checklist
 

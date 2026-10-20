@@ -31,6 +31,8 @@
 
 ## Install in 1 minute (Windows)
 
+> **Full step-by-step guide for admins, members and the platform owner: [INSTALL.md](INSTALL.md).**
+
 **Step 1.** Open **PowerShell**: press the <kbd>Windows</kbd> key, type `PowerShell`, and press <kbd>Enter</kbd>.
 
 **Step 2.** Copy this line, paste it into PowerShell (right-click pastes), and press <kbd>Enter</kbd>:
@@ -121,9 +123,12 @@ need admin rights.
 | **Admin** | Whoever installed OpenShelf on their PC | Everything on their server: members, invites, join requests, settings, moderation, activity log. Members consent to this access once, at sign-up. |
 | **Super Admin** | The OpenShelf platform owner | Everything an admin can do, on every server. Disclosed in the [Terms](src/lib/legal.ts). |
 
-> **Coming next:** admins whose PC is online will link to the **Super Admin panel over the internet**, and members
-> on other networks will be able to join over the internet too. Teams on the same Wi-Fi keep transferring locally
-> at full speed.
+**Super Admin panel.** Servers that are online report to a free Super Admin panel (Cloudflare Workers + D1), and
+the platform owner can open any of them from there through a private, gated link. Setup takes three commands: see
+[INSTALL.md](INSTALL.md#3-set-up-the-super-admin-panel-platform-owner).
+
+> **Coming next:** members on other networks will be able to join over the internet. Teams on the same Wi-Fi keep
+> transferring locally at full speed.
 
 ## Updating and uninstalling
 
@@ -168,6 +173,7 @@ Type the new password twice (it stays hidden), then open OpenShelf again from th
 
 ## For developers
 
+- [Installation guide](INSTALL.md): admins, members, and the Super Admin panel.
 - [Developer guide](docs/DEVELOPMENT.md): stack, configuration, architecture, roles, database, Docker and scripts.
 - [Security](SECURITY.md): the full security checklist, and how to report a vulnerability.
 - [Releasing](RELEASING.md): how releases, update popups and code signing work.
