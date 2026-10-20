@@ -149,8 +149,8 @@ npm run panel:setup                     # prints the panel address and your pane
 
 Then commit the `installer/panel.json` it writes and publish a release ([RELEASING.md](RELEASING.md)). Every server
 on that release links to your panel automatically. Open the panel address, sign in with your panel key, and click
-**Open live server** on any online server. Lost the key? Run `npm run panel:rotate-key` and release
-again.
+**Open live server** on any online server. Lost the key? Run `npm run panel:new-key` (no release
+needed).
 
 > **Coming next:** members on other networks will be able to join over the internet. Teams on the same Wi-Fi keep
 > transferring locally at full speed.

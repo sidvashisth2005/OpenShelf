@@ -16,7 +16,8 @@
     "bundle": "node scripts/build-bundle.mjs",
     "build:exe": "node scripts/build-exe.mjs",
     "panel:setup": "node scripts/panel-setup.mjs",
-    "panel:rotate-key": "node scripts/panel-setup.mjs --rotate-key"
+    "panel:rotate-key": "node scripts/panel-setup.mjs --rotate-key",
+    "panel:new-key": "node scripts/panel-new-key.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.10",

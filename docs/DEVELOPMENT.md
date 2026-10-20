@@ -198,7 +198,8 @@ non-root user with uploads on the `uploads` volume. Put a TLS-terminating revers
 | `npm run db:generate` | Generate a migration after changing `schema.ts` |
 | `npm run db:migrate` | Apply migrations (`DATABASE_URL`, or local PGlite) |
 | `npm run admin:hash` | Produce `SUPER_ADMIN_PASSWORD_HASH_B64` |
-| `npm run panel:setup` | Create or redeploy the Super Admin panel on Cloudflare (`npm run panel:rotate-key` for a new key) |
+| `npm run panel:setup` | Create or redeploy the Super Admin panel on Cloudflare (`npm run panel:rotate-key` for new keys + signing key) |
+| `npm run panel:new-key` | New panel sign-in key only; servers stay linked |
 
 ## Production checklist
 

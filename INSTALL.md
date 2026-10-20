@@ -126,8 +126,10 @@ anything.
 Open your panel address and sign in with your panel key. You see each server, whether it's online, its members
 and its content. Click **Open live server** to sign in to that server as Super Admin.
 
-- **Lost the key, or think someone saw it?** Run `npm run panel:rotate-key`. That gives you a new
-  key and signing keys. Publish a new release afterwards so servers trust the new signing key.
+- **Lost the key, or think someone saw it?** Run `npm run panel:new-key`. It prints a new key and the old
+  one stops working. Servers stay linked; no release needed.
+- **Think the panel itself was compromised?** Run `npm run panel:rotate-key` (new key and new signing keys),
+  then publish a new release so servers trust the new signing key.
 - **Changed the panel code?** Run `npm run panel:setup` again. It keeps your key and just redeploys.
 
 ---
