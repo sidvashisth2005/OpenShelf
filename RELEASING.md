@@ -25,11 +25,9 @@ again so servers trust the new signing key.
 
 ## Update popups for existing users
 
-Installed copies check the **latest GitHub Release** every time the app is opened. They never look at plain
-commits. A popup is shown **only** when both of these are true:
-
-- the release version is newer than the installed one, and
-- the release notes contain this line (it is invisible on the GitHub page):
+Installed copies check the **GitHub Releases** every time the app is opened. They never look at plain
+commits. A popup is shown **only** when there is a release newer than the installed version whose notes
+contain this line (it is invisible on the GitHub page):
 
   ```
   <!-- notify-users -->
@@ -38,6 +36,10 @@ commits. A popup is shown **only** when both of these are true:
 So for small fixes, leave the marker out: people get the fix the next time they reinstall or update, but
 nobody is interrupted. For a big feature release, add the marker at the top of `RELEASE_NOTES.md`. The first
 few lines of the notes appear in the popup, so lead with the headline feature.
+
+Since 0.4.2, a small unmarked release never hides a marked one: someone on 0.3.0 still gets the popup for a
+marked 0.5.0 even after 0.5.1 (unmarked) is out. The popup shows the marked release's highlights and installs the
+newest version. (Copies older than 0.4.2 only look at the newest release.)
 
 You can also add or remove the marker afterwards by editing the release on GitHub. Installed apps read the live
 release text.

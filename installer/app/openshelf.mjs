@@ -482,28 +482,38 @@ async function checkForUpdate() {
   const cfg = readConfig();
   if (cfg.UPDATE_CHECK === "false") return;
   const current = readFileSync(path.join(APP_DIR, "VERSION"), "utf8").trim();
-  let release;
+  let releases;
   try {
-    const url = process.env.OPENSHELF_UPDATE_URL || `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`;
+    // Every recent release, not just the newest: a small unmarked release must not hide a
+    // marked (important) one that this install hasn't got yet.
+    const url = process.env.OPENSHELF_UPDATE_URL || `https://api.github.com/repos/${UPDATE_REPO}/releases?per_page=30`;
     const res = await fetch(url, {
       headers: { Accept: "application/vnd.github+json", "User-Agent": "OpenShelf-update-check" },
       signal: AbortSignal.timeout(6000),
     });
     if (!res.ok) return;
-    release = await res.json();
+    const data = await res.json();
+    releases = Array.isArray(data) ? data : [data];
   } catch {
     return; // offline or GitHub unreachable: never block opening the app
   }
-  const latest = String(release.tag_name || "").replace(/^v/i, "");
+  const versionOf = (r) => String(r.tag_name || "").replace(/^v/i, "");
+  const newer = releases
+    .filter((r) => !r.draft && !r.prerelease && versionOf(r) && newerThan(versionOf(r), current))
+    .sort((a, b) => (newerThan(versionOf(a), versionOf(b)) ? -1 : 1));
+  const release = newer[0]; // always install the newest
+  const latest = release ? versionOf(release) : "";
+  const marked = newer.find((r) => NOTIFY_MARKER.test(r.body || ""));
   const dryRun = Boolean(process.env.OPENSHELF_UPDATE_DRY_RUN);
   const decide = (msg) => dryRun && console.log(`update-check: ${msg}`);
-  if (!latest || !newerThan(latest, current)) return decide(`no popup (latest ${latest || "?"} is not newer than ${current})`);
-  if (!NOTIFY_MARKER.test(release.body || "")) return decide(`no popup (${latest} has no notify-users marker)`);
+  if (!release) return decide(`no popup (nothing newer than ${current})`);
+  if (!marked) return decide(`no popup (no release newer than ${current} has the notify-users marker)`);
   if (readUpdateState().skipped === latest) return decide(`no popup (${latest} was skipped by the user)`);
-  if (dryRun) return decide(`POPUP for ${latest}: ${highlights(release.body).replace(/\n/g, " | ")}`);
+  if (dryRun) return decide(`POPUP for ${latest}: ${highlights(marked.body).replace(/\n/g, " | ")}`);
 
   const installer = (release.assets || []).find((a) => a.name === "OpenShelf.exe");
-  const notes = highlights(release.body);
+  // The highlights of the important release, even when a smaller fix came after it.
+  const notes = highlights(marked.body);
   const choice = ask(
     `${release.name || `OpenShelf ${latest}`} is available`,
     `A new version of OpenShelf is available (you have ${current}).\n\n${notes}\n\n` +
