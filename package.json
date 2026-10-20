@@ -12,7 +12,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "admin:hash": "tsx scripts/hash-password.ts",
-    "test:e2e": "node tests/e2e/smoke.mjs"
+    "test:e2e": "node tests/e2e/smoke.mjs",
+    "bundle": "node scripts/build-bundle.mjs",
+    "build:exe": "node scripts/build-exe.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.10",
@@ -35,6 +37,7 @@
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
+    "postject": "^1.0.0-alpha.6",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5",

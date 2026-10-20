@@ -43,3 +43,6 @@ next-env.d.ts
 
 # local data (PGlite database + uploaded files)
 /.data
+
+# build artifacts (release bundle, installer exe)
+/dist
