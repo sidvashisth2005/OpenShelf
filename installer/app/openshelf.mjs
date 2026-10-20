@@ -198,7 +198,8 @@ async function start() {
   watchFile(NETWORK_FILE, { interval: 1000 }, () => {
     if (lanEnabled() !== lan && !restarting) {
       restarting = true;
-      child.kill();
+      // Let the "Settings saved" response reach the browser before the server goes down.
+      setTimeout(() => child.kill(), 2000);
     }
   });
   for (const sig of ["SIGINT", "SIGTERM"]) {

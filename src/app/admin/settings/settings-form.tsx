@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { DoorOpen, Lock, UserCheck, Wifi } from "lucide-react";
 import { saveSettingsAction } from "@/app/actions/server";
 import { FieldError, FormError, FormSuccess } from "@/components/form-message";
@@ -20,6 +20,8 @@ export function ServerSettingsForm({
   managed: boolean;
 }) {
   const [state, action] = useActionState(saveSettingsAction, undefined);
+  const [lan, setLan] = useState(defaults.lanEnabled);
+  const lanChanged = lan !== defaults.lanEnabled;
   const fe = state?.fieldErrors ?? {};
   return (
     <form action={action} className="space-y-6">
@@ -50,7 +52,7 @@ export function ServerSettingsForm({
       </fieldset>
 
       <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface p-4 shadow-soft has-checked:border-accent">
-        <input type="checkbox" name="lanEnabled" defaultChecked={defaults.lanEnabled} className="mt-1 size-4 shrink-0 accent-(--accent)" />
+        <input type="checkbox" name="lanEnabled" checked={lan} onChange={(e) => setLan(e.target.checked)} className="mt-1 size-4 shrink-0 accent-(--accent)" />
         <span>
           <span className="flex items-center gap-2 font-medium"><Wifi className="size-4 text-accent" /> Share on my Wi-Fi</span>
           <span className="mt-1 block text-sm text-muted">
@@ -63,7 +65,15 @@ export function ServerSettingsForm({
         </span>
       </label>
 
-      {state?.ok && <FormSuccess message="Settings saved." />}
+      {state?.ok && (
+        <FormSuccess
+          message={
+            managed && lanChanged
+              ? "Settings saved. OpenShelf is restarting to apply Wi-Fi sharing: reload this page in a few seconds."
+              : "Settings saved."
+          }
+        />
+      )}
       <SubmitButton pendingText="Saving…">Save settings</SubmitButton>
     </form>
   );

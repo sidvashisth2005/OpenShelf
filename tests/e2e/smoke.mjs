@@ -18,7 +18,8 @@ const check = (cond, msg) => {
 };
 
 class Client {
-  constructor(name) { this.name = name; this.cookies = new Map(); }
+  // Each client gets its own IP, like separate people (per-IP rate limits apply per person).
+  constructor(name) { this.name = name; this.cookies = new Map(); this.ip = `10.0.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`; }
   cookieHeader() { return [...this.cookies].map(([k, v]) => `${k}=${v}`).join("; "); }
   store(res) {
     for (const c of res.headers.getSetCookie?.() ?? []) {
@@ -29,7 +30,7 @@ class Client {
     }
   }
   async req(path, init = {}) {
-    const res = await fetch(BASE + path, { ...init, redirect: "manual", headers: { origin: BASE, ...(init.headers ?? {}), cookie: this.cookieHeader() } });
+    const res = await fetch(BASE + path, { ...init, redirect: "manual", headers: { origin: BASE, "x-forwarded-for": this.ip, ...(init.headers ?? {}), cookie: this.cookieHeader() } });
     this.store(res);
     return res;
   }
@@ -189,7 +190,7 @@ check(r.text.includes("Incorrect email or password"), "wrong admin password reje
 r = await admin.submit("/login", "password", { email: ADMIN_EMAIL.toUpperCase(), password: ADMIN_PASSWORD });
 check(r.status === 303 && r.location?.includes("/admin"), `admin login (env credentials) redirects to /admin (${r.status} ${r.location})`);
 const dash = await admin.get("/admin");
-check(dash.status === 200 && dash.text.includes("Platform overview"), "admin dashboard renders");
+check(dash.status === 200 && dash.text.includes("Team Shelf") && dash.text.includes("Super Admin"), "super admin dashboard renders");
 check((await admin.get("/admin/users")).text.includes("alice@example.test"), "admin sees all users");
 const adminPriv = await admin.get(`/c/${privateId}`);
 check(adminPriv.status === 200 && adminPriv.text.includes("top secret text") && adminPriv.text.includes("recorded in the audit log"), "admin can open private content (with logged-access notice)");
