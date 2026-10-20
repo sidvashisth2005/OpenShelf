@@ -8,6 +8,11 @@ const optionalString = z
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   DATABASE_URL: optionalString,
+  // Single-PC installs (setup script / OpenShelf.exe) run production with the embedded database.
+  EMBEDDED_DB: z
+    .enum(["true", "false", ""])
+    .optional()
+    .transform((v) => v === "true"),
   PGLITE_DIR: z.string().default("./.data/pglite"),
   UPLOAD_DIR: z.string().default("./.data/uploads"),
   MAX_UPLOAD_MB: z.coerce.number().int().positive().max(2048).default(50),

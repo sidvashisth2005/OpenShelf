@@ -22,8 +22,10 @@ async function connect(): Promise<Db> {
     // Production applies migrations explicitly (`npm run db:migrate`) as a deploy step.
     return drizzle(pool, { schema }) as unknown as Db;
   }
-  if (e.NODE_ENV === "production") {
-    throw new Error("DATABASE_URL is required in production (embedded PGlite is for local development only).");
+  if (e.NODE_ENV === "production" && !e.EMBEDDED_DB) {
+    throw new Error(
+      "DATABASE_URL is required in production. For a single-PC install, set EMBEDDED_DB=true to use the embedded database.",
+    );
   }
 
   const { PGlite } = await import("@electric-sql/pglite");
@@ -33,7 +35,7 @@ async function connect(): Promise<Db> {
   mkdirSync(dir, { recursive: true });
   const client = new PGlite(dir);
   const db = drizzle(client, { schema });
-  // Embedded dev database: keep it migrated automatically.
+  // Embedded database (dev, or a single-PC install): keep it migrated automatically.
   await migrate(db, { migrationsFolder: MIGRATIONS_DIR });
   return db as unknown as Db;
 }
