@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkUploadType, matchesSignature } from "./file-types";
+import { checkUploadType, cleanUploadPath, matchesSignature } from "./file-types";
 import { serverSettingsSchema, signupSchema } from "./validation";
 
 const base = {
@@ -46,12 +46,15 @@ describe("checkUploadType", () => {
 
   it("rejects scriptable or unknown types", () => {
     expect("error" in checkUploadType("x.svg", "image/svg+xml")).toBe(true);
-    expect("error" in checkUploadType("x.html", "text/html")).toBe(true);
     expect("error" in checkUploadType("x.exe", "application/octet-stream")).toBe(true);
   });
 
+  it("never keeps a scriptable type: HTML is stored as plain text", () => {
+    expect(checkUploadType("x.html", "text/html")).toEqual({ ext: "html", mime: "text/plain" });
+  });
+
   it("rejects extension / type mismatches", () => {
-    expect("error" in checkUploadType("x.html", "image/png")).toBe(true);
+    expect("error" in checkUploadType("x.png", "image/jpeg")).toBe(true);
   });
 });
 
@@ -82,5 +85,24 @@ describe("serverSettingsSchema", () => {
   it("reads a checked box as on", () => {
     const r = serverSettingsSchema.safeParse({ name: "Team Shelf", joinMode: "open", lanEnabled: "on" });
     expect(r.success && r.data.lanEnabled).toBe(true);
+  });
+});
+
+describe("code and folder uploads", () => {
+  it("stores code files as plain text whatever the browser claims", () => {
+    expect(checkUploadType("app.js", "text/javascript")).toEqual({ ext: "js", mime: "text/plain" });
+    expect(checkUploadType("index.html", "text/html")).toEqual({ ext: "html", mime: "text/plain" });
+    expect(checkUploadType("Dockerfile", "")).toEqual({ ext: "txt", mime: "text/plain" });
+  });
+  it("refuses .env files and binaries", () => {
+    expect("error" in checkUploadType(".env", "")).toBe(true);
+    expect("error" in checkUploadType("setup.exe", "application/x-msdownload")).toBe(true);
+  });
+  it("cleans folder paths and rejects traversal", () => {
+    expect(cleanUploadPath("project\\src\\app.js", "app.js")).toBe("project/src/app.js");
+    expect(cleanUploadPath("./project//a.txt", "a.txt")).toBe("project/a.txt");
+    expect(cleanUploadPath("", "a.txt")).toBe("a.txt");
+    expect(cleanUploadPath("../etc/passwd", "passwd")).toBeNull();
+    expect(cleanUploadPath("a/\u0000b.txt", "b.txt")).toBeNull();
   });
 });

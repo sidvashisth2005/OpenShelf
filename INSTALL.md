@@ -61,9 +61,16 @@ That's it. Keep OpenShelf running on your PC while people use it.
 
 You agree to that once. You won't be asked again.
 
-Done. Upload with the **Upload** button, and find your files under **My content**.
+Done. You land on the **Feed**: everything shared on the server, including the admin's posts. Upload with
+**Upload** (single files, several at once, or a whole folder), find your own files under **My content**, and talk to
+the admin in **Messages**.
 
 Nothing to install for members. It works in any browser.
+
+> **Installed OpenShelf by mistake, or want your PC to open the team's server?** On the first screen (**Set up your
+> server**), open **Joining someone else's server instead?**, paste the invite link and click **Join this server**.
+> The OpenShelf icon then opens the team's server. To run your own server later, open
+> `http://localhost:4310/setup` and click **Use this PC as its own server instead**.
 
 ---
 

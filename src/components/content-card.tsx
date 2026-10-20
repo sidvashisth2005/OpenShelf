@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { File, FileText, Film, Image as ImageIcon, Music, type LucideIcon } from "lucide-react";
+import { File, FileText, Film, FolderOpen, Image as ImageIcon, Music, type LucideIcon } from "lucide-react";
 import { fileKind } from "@/lib/file-types";
 import { formatBytes } from "@/lib/format";
 import type { ContentWithOwner } from "@/server/services/content";
@@ -12,6 +12,7 @@ const KINDS: Record<ReturnType<typeof fileKind>, { label: string; icon: LucideIc
   audio: { label: "Audio", icon: Music, bg: "from-emerald-500/15 to-teal-500/15 text-emerald-600 dark:text-emerald-400" },
   pdf: { label: "PDF", icon: FileText, bg: "from-red-500/15 to-amber-500/15 text-red-600 dark:text-red-400" },
   text: { label: "Text", icon: FileText, bg: "from-violet-500/15 to-fuchsia-500/15 text-violet-600 dark:text-violet-400" },
+  folder: { label: "Folder", icon: FolderOpen, bg: "from-amber-500/15 to-yellow-500/15 text-amber-600 dark:text-amber-400" },
   other: { label: "File", icon: File, bg: "from-zinc-500/15 to-zinc-400/15 text-zinc-500" },
 };
 

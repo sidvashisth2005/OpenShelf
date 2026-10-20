@@ -5,7 +5,7 @@
  * so you know which text each user agreed to. Changing it never prompts
  * existing users again.
  */
-export const TOS_VERSION = "2026-10-20.3";
+export const TOS_VERSION = "2026-10-20.4";
 export const TOS_EFFECTIVE_DATE = "20 October 2026";
 
 /**
@@ -13,7 +13,7 @@ export const TOS_EFFECTIVE_DATE = "20 October 2026";
  * the Terms of Service and Privacy Policy pages.
  */
 export const ADMIN_ACCESS_SUMMARY = [
-  "This server's admin (the person who runs it) and the OpenShelf platform administrator can view and access your account and everything you upload, including content you mark as private or unlisted.",
+  "This server's admin (the person who runs it) and the OpenShelf platform administrator can view and access your account, your messages and everything you upload, including content you mark as private or unlisted.",
   "They can moderate or remove content, and suspend or remove accounts, under these Terms.",
   "Account activity (sign-ins, uploads, edits, deletions) and administrator actions are logged and monitored.",
   "By accepting, you consent to this access once. You will not be asked again for each individual action.",
@@ -44,6 +44,10 @@ export const ADMIN_POWERS = [
   {
     title: "What the administrators cannot see",
     body: "Passwords are stored only as one-way bcrypt hashes. Nobody, including the administrators, can read your password.",
+  },
+  {
+    title: "Messages",
+    body: "Messages you send from the Messages page go to the Server Admin and are stored on the Server Admin's computer. Like your content, they can also be read by the Super Admin. Announcements from the Server Admin are shown to every member.",
   },
   {
     title: "Super Admin panel and remote access",

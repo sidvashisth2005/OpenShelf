@@ -202,7 +202,8 @@ export async function getPublicProfile(username: string) {
       and(
         sql`lower(${schema.users.username}) = ${username.toLowerCase()}`,
         eq(schema.users.status, "active"),
-        eq(schema.users.role, "user"),
+        // Members and the server admin have public profiles; the platform Super Admin doesn't.
+        ne(schema.users.role, "super_admin"),
       ),
     )
     .limit(1);

@@ -9,7 +9,7 @@ import { createSession, destroyAllSessionsForUser } from "@/server/auth/session"
 import { getDb, schema } from "@/server/db";
 import { rateLimit } from "@/server/rate-limit";
 import { storage } from "@/server/storage";
-import type { MutationResult } from "./content";
+import { storageKeysOf, type MutationResult } from "./content";
 
 // The super admin's credential and identity live in env config, not here.
 const SELF_SERVICE_ONLY: MutationResult = {
@@ -86,6 +86,7 @@ export async function deleteOwnAccount(user: CurrentUser, input: Record<string, 
     .from(schema.content)
     .where(eq(schema.content.ownerId, user.id));
 
+  const keys = await storageKeysOf(items);
   const tombstone = `deleted-${user.id.slice(0, 8)}`;
   await db.transaction(async (tx) => {
     await tx.delete(schema.content).where(eq(schema.content.ownerId, user.id));
@@ -103,7 +104,7 @@ export async function deleteOwnAccount(user: CurrentUser, input: Record<string, 
       .where(eq(schema.users.id, user.id));
   });
   // Files go after the rows are gone, so a failure here can't leave dangling content.
-  await Promise.all(items.map((i) => storage().delete(i.storageKey)));
+  await Promise.all(keys.map((k) => storage().delete(k)));
   await destroyAllSessionsForUser(user.id);
   await audit({
     actor: user,

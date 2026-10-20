@@ -10,14 +10,14 @@ import type { ActionState } from "./types";
 /** Only allow same-site relative redirects after login (no open redirect). */
 function safeNext(v: FormDataEntryValue | null): string {
   const s = typeof v === "string" ? v : "";
-  return s.startsWith("/") && !s.startsWith("//") && !s.startsWith("/\\") ? s : "/dashboard";
+  return s.startsWith("/") && !s.startsWith("//") && !s.startsWith("/\\") ? s : "/";
 }
 
 export async function signupAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const result = await signup(Object.fromEntries(formData));
   if (!result.ok) return { error: result.error, fieldErrors: result.fieldErrors };
   if (result.pending) return { ok: true, message: "pending" };
-  redirect("/dashboard");
+  redirect("/?joined=1");
 }
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

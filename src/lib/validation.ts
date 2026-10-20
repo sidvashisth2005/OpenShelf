@@ -68,6 +68,10 @@ export const contentFieldsSchema = z.object({
   status: z.enum(["published", "draft"]),
 });
 
+export const messageSchema = z.object({
+  body: z.string().trim().min(1, "Write a message.").max(4000, "Keep it under 4000 characters."),
+});
+
 export const reasonSchema = z
   .string()
   .trim()

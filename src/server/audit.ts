@@ -28,12 +28,13 @@ export type AuditAction =
   | "admin.invite.revoke"
   | "admin.server.settings"
   | "server.setup"
-  | "auth.join_requested";
+  | "auth.join_requested"
+  | "admin.message.announce";
 
 export async function audit(entry: {
   actor: { id: string; role: Role } | null;
   action: AuditAction;
-  targetType?: "user" | "content" | "invite";
+  targetType?: "user" | "content" | "invite" | "message";
   targetId?: string;
   metadata?: Record<string, unknown>;
 }): Promise<void> {

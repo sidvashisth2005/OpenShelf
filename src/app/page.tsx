@@ -19,6 +19,12 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
 
   return (
     <div className="space-y-6">
+      {sp.joined === "1" && user && (
+        <Callout tone="info" icon={CheckCircle2}>
+          Welcome to {name}! Everything shared here, by the admin and other members, shows up in this feed. Your own
+          uploads are under My content, and you can message the admin from Messages.
+        </Callout>
+      )}
       {sp.account === "deleted" && (
         <Callout tone="info" icon={CheckCircle2}>Your account and all of your content have been deleted.</Callout>
       )}
@@ -55,8 +61,8 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
       <section id="explore" className="scroll-mt-24">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="eyebrow mb-1.5">Explore</p>
-            <h2 className="page-title">Latest from the community</h2>
+            <p className="eyebrow mb-1.5">Feed</p>
+            <h2 className="page-title">Latest on {name}</h2>
           </div>
           {user && (
             <Link className="btn btn-secondary" href="/upload"><Upload /> Share something</Link>
@@ -66,7 +72,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           <EmptyState
             icon={Compass}
             title="Nothing published yet"
-            description="Be the first to share something with the community."
+            description="Everything people share publicly on this server shows up here. Be the first!"
             action={<Link className="btn btn-primary" href={user ? "/upload" : "/signup"}><Upload /> Upload content</Link>}
           />
         ) : (

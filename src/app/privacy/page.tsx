@@ -24,6 +24,7 @@ export default function PrivacyPage() {
       <ul>
         <li><strong>Account data:</strong> email address, username, display name, and a one-way hash of your password.</li>
         <li><strong>Content:</strong> the files you upload, with their titles, descriptions, file names, types, sizes, and visibility settings.</li>
+        <li><strong>Messages:</strong> what you write to the server admin from the Messages page, and announcements the admin sends.</li>
         <li><strong>Consent records:</strong> which version of the Terms and this policy you accepted, when, and from which IP address and browser.</li>
         <li><strong>Activity logs:</strong> sign-ups, sign-ins, failed sign-in attempts, sign-outs, uploads, edits, and deletions, with time, IP address, and (for sessions) browser user agent.</li>
         <li><strong>Session cookie:</strong> one strictly necessary, HTTP-only cookie that keeps you signed in, for up to {SESSION_TTL_DAYS} days. We use no advertising or tracking cookies.</li>

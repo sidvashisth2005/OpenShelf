@@ -39,6 +39,8 @@ export const users = pgTable(
     tosVersion: text("tos_version"),
     tosAcceptedAt: timestamp("tos_accepted_at", { withTimezone: true }),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+    // Announcements newer than this are unread for the member.
+    announcementsReadAt: timestamp("announcements_read_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -96,7 +98,9 @@ export const content = pgTable(
     status: contentStatus("status").notNull().default("published"),
     // Status before a moderation removal, so a restore puts it back exactly.
     statusBeforeRemoval: contentStatus("status_before_removal"),
+    // Empty for a folder post: its files live in content_files.
     storageKey: text("storage_key").notNull(),
+    // For a folder post: the folder name. mimeType is then FOLDER_MIME and sizeBytes the total.
     fileName: text("file_name").notNull(),
     mimeType: text("mime_type").notNull(),
     sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
@@ -110,6 +114,42 @@ export const content = pgTable(
     index("content_owner_idx").on(t.ownerId),
     index("content_feed_idx").on(t.status, t.visibility, t.createdAt),
   ],
+);
+
+/** The files of a folder post (several files shared at once), in upload order. */
+export const contentFiles = pgTable(
+  "content_files",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    contentId: uuid("content_id")
+      .notNull()
+      .references(() => content.id, { onDelete: "cascade" }),
+    // Display path inside the folder, e.g. "src/app.js". Never used to build storage paths.
+    path: text("path").notNull(),
+    storageKey: text("storage_key").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+    position: integer("position").notNull(),
+  },
+  (t) => [index("content_files_content_idx").on(t.contentId, t.position)],
+);
+
+/**
+ * Messages between a member and the server's admins (one thread per member), plus
+ * announcements from the admins to everyone (memberId null).
+ */
+export const messages = pgTable(
+  "messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    memberId: uuid("member_id").references(() => users.id, { onDelete: "cascade" }),
+    senderId: uuid("sender_id").references(() => users.id, { onDelete: "set null" }),
+    body: text("body").notNull(),
+    // When the other side read it (unused for announcements).
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("messages_member_idx").on(t.memberId, t.createdAt)],
 );
 
 export const auditLogs = pgTable(
@@ -163,6 +203,8 @@ export const invites = pgTable(
 
 export type User = typeof users.$inferSelect;
 export type Content = typeof content.$inferSelect;
+export type ContentFile = typeof contentFiles.$inferSelect;
+export type Message = typeof messages.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type ServerSettings = typeof serverSettings.$inferSelect;
 export type Invite = typeof invites.$inferSelect;

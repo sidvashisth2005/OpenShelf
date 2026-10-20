@@ -42,6 +42,24 @@ and the printed `SUPER_ADMIN_PASSWORD_HASH_B64` into `.env.local`.
 - Over plain `http` (localhost or a LAN address), the session cookie is an ordinary `HttpOnly` cookie. Over HTTPS,
   it's a `__Host-` `Secure` cookie.
 
+## Folders, messages and joining a team's server
+
+- **Folder posts.** An upload can carry several files (`file` + `path` fields, in order). One file without a folder
+  path stays a normal post. Otherwise the post's `mimeType` is `FOLDER_MIME`, `storageKey` is empty, and the
+  files live in `content_files` (display path, storage key, type, size, position). `/api/files/[id]` streams a
+  folder as a stored .zip (`src/server/zip.ts`), `/api/files/[id]/[fileId]` serves one file. Paths are display
+  only and never touch storage paths (`cleanUploadPath` rejects `..` and control characters). Limits: 100 files,
+  `MAX_UPLOAD_MB` each, `FOLDER_SIZE_FACTOR` x that in total.
+- **Code files.** Extensions in `CODE_EXTENSIONS` (and names like `Dockerfile`) are stored and served as
+  `text/plain` with `nosniff` and a sandbox CSP, so `.html`/`.js` display as text and never run. `.env` files
+  are refused.
+- **Messages** (`messages` table, `src/server/services/messages.ts`): one thread per member with the server's
+  admins (`memberId` = the member) and announcements (`memberId` null). `message:manage` lets admins read every
+  thread, reply and announce. Unread: `readAt` per message, `users.announcements_read_at` for announcements.
+- **Joining a team's server.** On an install that isn't set up yet, `/setup` (this PC only) can store a team
+  server's invite link in `data/remote.json` (`OPENSHELF_REMOTE_FILE`). `requireSetUp` then redirects there,
+  and the launcher (`openshelf.mjs open`) opens that address.
+
 ## Super admin
 
 - There is exactly one super admin. It is defined by **`SUPER_ADMIN_EMAIL`** and **`SUPER_ADMIN_PASSWORD_HASH_B64`**.
@@ -92,7 +110,7 @@ Defined in [src/lib/rbac.ts](../src/lib/rbac.ts). Code checks **permissions**, n
 | `content:read:any`, `content:moderate:any`, `content:delete:any` | | ✓ | ✓ |
 | `user:read:any`, `user:suspend`, `user:remove`, `user:approve` | | ✓ | ✓ |
 | `audit:read`, `admin:dashboard` | | ✓ | ✓ |
-| `server:manage`, `invite:manage` | | ✓ | ✓ |
+| `server:manage`, `invite:manage`, `message:manage` | | ✓ | ✓ |
 
 Ranks are `user` < `admin` < `super_admin`. Account actions require outranking the target (`outranks`), so the
 admin can manage members but can never suspend or remove the super admin, or themselves.
@@ -193,7 +211,7 @@ non-root user with uploads on the `uploads` volume. Put a TLS-terminating revers
 | `npm run dev` | Dev server (auto-migrates the local PGlite database) |
 | `npm run build` / `npm start` | Production build / server |
 | `npm test` | Unit tests (RBAC, validation, upload allowlist) |
-| `npm run test:e2e` | End-to-end smoke test against a running server with a **fresh** database (set `E2E_BASE_URL`, `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`) |
+| `npm run test:e2e` | End-to-end smoke test (110 checks) against a running server with a **fresh** database (set `E2E_BASE_URL`, `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`) |
 | `npm run typecheck` / `npm run lint` | Static checks |
 | `npm run db:generate` | Generate a migration after changing `schema.ts` |
 | `npm run db:migrate` | Apply migrations (`DATABASE_URL`, or local PGlite) |

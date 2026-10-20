@@ -92,7 +92,7 @@ const viaLink = await new Client("linkvisitor").get(`/join/${inviteToken}`);
 check(viaLink.status === 307 && (viaLink.location ?? "").includes(`invite=${inviteToken}`), "/join link opens sign-up with the invite");
 const member1 = new Client("member1");
 r = await member1.submit(`/signup?invite=${inviteToken}`, "acceptTerms", { ...signupFields("member1"), acceptTerms: "on" });
-check(r.status === 303 && (r.location ?? "").includes("/dashboard"), "invited person joins and is signed in");
+check(r.status === 303 && (r.location ?? "").includes("joined=1"), "invited person joins, is signed in and lands on the feed");
 const reuse = await new Client("reuse").get(`/signup?invite=${inviteToken}`);
 check(reuse.text.includes("invite link isn"), "a single-use invite link cannot be used twice");
 
@@ -121,7 +121,7 @@ check(r.text.includes("You must accept the Terms"), "signup without accepting te
 check(!alice.cookies.size, "no session after rejected signup");
 
 r = await alice.submit("/signup", "acceptTerms", { ...signupFields("alice"), acceptTerms: "on" });
-check(r.status === 303 && r.location?.includes("/dashboard"), `signup with terms accepted redirects to dashboard (${r.status} ${r.location})`);
+check(r.status === 303 && r.location?.includes("joined=1"), `signup with terms accepted lands on the feed (${r.status} ${r.location})`);
 check([...alice.cookies.keys()].some((k) => k.endsWith("session")), "session cookie set after signup");
 
 const signupPage = await new Client("anon").get("/signup");
@@ -151,6 +151,16 @@ check((await anonPage("/signup")).headers.get("content-security-policy")?.includ
 let up = await alice.upload({ title: "Public pic", description: "hello", visibility: "public", status: "published" }, { blob: new Blob([PNG], { type: "image/png" }), name: "pic.png" });
 check(up.status === 201, `upload public image -> 201 (${up.status} ${JSON.stringify(up.body)})`);
 const publicId = up.body.id;
+// Sharing goes both ways: what the admin publishes reaches members, and the reverse.
+up = await owner.upload({ title: "Admin announcement", visibility: "public", status: "published" }, { blob: new Blob([PNG], { type: "image/png" }), name: "notice.png" });
+check(up.status === 201, "admin uploads public content");
+const adminItemId = up.body.id;
+check((await member1.get("/")).text.includes("Admin announcement"), "members see the admin's content in the feed");
+check((await member1.get(`/c/${adminItemId}`)).status === 200, "members open the admin's content page");
+check((await member1.get(`/api/files/${adminItemId}`)).status === 200, "members load the admin's file");
+check((await member1.get("/u/owner1")).text.includes("Admin announcement"), "the admin's profile lists their public content");
+check((await owner.get("/")).text.includes("Public pic"), "the admin sees members' content in the feed");
+
 up = await alice.upload({ title: "Secret notes", visibility: "private", status: "published" }, { blob: new Blob(["top secret text"], { type: "text/plain" }), name: "notes.txt" });
 check(up.status === 201, "upload private text -> 201");
 const privateId = up.body.id;
@@ -162,6 +172,55 @@ const crossSite = await fetch(BASE + "/api/content", { method: "POST", headers: 
 check(crossSite.status === 403, "cross-origin upload request blocked");
 up = await new Client("anon").upload({ title: "x", visibility: "public", status: "published" }, { blob: new Blob([PNG], { type: "image/png" }), name: "a.png" });
 check(up.status === 401, "anonymous upload -> 401");
+
+// ---- folders and multi-file posts -----------------------------------------
+{
+  const fd = new FormData();
+  for (const [k, v] of Object.entries({ title: "My project", description: "", visibility: "public", status: "published" })) fd.append(k, v);
+  const files = [
+    ["project/src/app.js", "console.log('hi');\n", "text/javascript"],
+    ["project/index.html", "<h1>hi</h1><script>alert(1)</script>", "text/html"],
+    ["project/README.md", "# Project\n", ""],
+    ["project/logo.png", PNG, "image/png"],
+  ];
+  for (const [path, body, type] of files) {
+    fd.append("file", new Blob([body], { type }), path.split("/").pop());
+    fd.append("path", path);
+  }
+  const res = await alice.req("/api/content", { method: "POST", body: fd });
+  const json = await res.json();
+  check(res.status === 201, `folder upload with code files -> 201 (${res.status} ${JSON.stringify(json)})`);
+  const page = await member1.get(`/c/${json.id}`);
+  check(page.status === 200 && page.text.includes("project/src/app.js") && page.text.includes("Download all"), "folder page lists every file");
+  const fileId = page.text.match(new RegExp(`/api/files/${json.id}/([0-9a-f-]{36})\\?download`))?.[1];
+  const one = await member1.req(`/api/files/${json.id}/${fileId}`);
+  check(one.status === 200 && one.headers.get("content-type")?.startsWith("text/plain") && one.headers.get("content-security-policy")?.includes("sandbox"), "a file inside the folder is served as sandboxed plain text");
+  const zip = await member1.req(`/api/files/${json.id}`);
+  const bytes = new Uint8Array(await zip.arrayBuffer());
+  check(zip.status === 200 && zip.headers.get("content-type") === "application/zip" && bytes[0] === 0x50 && bytes[1] === 0x4b, "Download all returns a .zip");
+  check(new TextDecoder().decode(bytes).includes("project/src/app.js"), "the .zip keeps the folder structure");
+  const bad = new FormData();
+  for (const [k, v] of Object.entries({ title: "bad", visibility: "public", status: "published" })) bad.append(k, v);
+  bad.append("file", new Blob(["a"], { type: "text/plain" }), "a.txt");
+  bad.append("path", "../../etc/a.txt");
+  check((await alice.req("/api/content", { method: "POST", body: bad })).status === 400, "path traversal in a folder path is rejected");
+  const env = new FormData();
+  for (const [k, v] of Object.entries({ title: "secrets", visibility: "public", status: "published" })) env.append(k, v);
+  env.append("file", new Blob(["KEY=1"], { type: "" }), ".env");
+  check((await alice.req("/api/content", { method: "POST", body: env })).status === 400, ".env files are refused");
+}
+
+// ---- messages ----------------------------------------------------------------
+r = await member1.submit("/messages", 'name="body"', { body: "Hello admin, quick question" });
+check(r.status === 200 || r.status === 303, "member sends a message to the admin");
+check((await owner.get("/admin/messages")).text.includes("Hello admin, quick question"), "admin sees the member's message in the inbox");
+const threadId = (await owner.get("/admin/messages")).text.match(/\/admin\/messages\/([0-9a-f-]{36})/)?.[1];
+r = await owner.submit(`/admin/messages/${threadId}`, 'name="body"', { body: "Hi! Here is the answer" });
+check((await member1.get("/messages")).text.includes("Hi! Here is the answer"), "member sees the admin's reply");
+check(!(await alice.get("/messages")).text.includes("Hello admin, quick question"), "other members cannot see someone else's thread");
+r = await owner.submit("/admin/messages", 'name="body"', { body: "Server maintenance tonight" });
+check((await alice.get("/messages")).text.includes("Server maintenance tonight"), "every member sees announcements");
+check((await member1.get("/admin/messages")).status === 404, "members cannot open the admin inbox");
 
 // ---- visibility ----------------------------------------------------------
 const anon = new Client("anon");

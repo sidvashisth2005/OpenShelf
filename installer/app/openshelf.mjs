@@ -268,6 +268,18 @@ function runTunnel(port, onPid) {
 }
 
 const NETWORK_FILE = path.join(DATA_DIR, "network.json");
+// Set when this PC joined a team's server instead of becoming one (from the /setup page).
+const REMOTE_FILE = path.join(DATA_DIR, "remote.json");
+
+/** The team server this PC opens, if it joined one. */
+function remoteServer() {
+  try {
+    const { url } = JSON.parse(readFileSync(REMOTE_FILE, "utf8"));
+    return typeof url === "string" && /^https?:\/\/[^/]+$/.test(url) ? url : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Whether the admin turned on "Share on my Wi-Fi" (written by the app's Server settings). */
 function lanEnabled() {
@@ -359,6 +371,7 @@ async function serve() {
     // This PC only, unless the admin turned on Wi-Fi sharing.
     HOSTNAME: process.env.OPENSHELF_BIND || "127.0.0.1",
     OPENSHELF_NETWORK_FILE: NETWORK_FILE,
+    OPENSHELF_REMOTE_FILE: REMOTE_FILE,
   });
   await import(pathToFileURL(path.join(APP_DIR, "server.js")).href);
 }
@@ -405,7 +418,9 @@ async function open() {
       process.exit(1);
     }
   }
-  openBrowser(url);
+  // A PC that joined a team's server opens that server; this PC's own server stays
+  // available at localhost (its /setup page can switch back).
+  openBrowser(remoteServer() ?? url);
   await checkForUpdate();
 }
 

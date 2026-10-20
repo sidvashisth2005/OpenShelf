@@ -1,4 +1,4 @@
-import { File, FileText, Film, Image as ImageIcon, Music } from "lucide-react";
+import { File, FileText, Film, FolderOpen, Image as ImageIcon, Music } from "lucide-react";
 import { fileKind } from "@/lib/file-types";
 
 const STYLES = {
@@ -7,6 +7,7 @@ const STYLES = {
   audio: { Icon: Music, cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
   pdf: { Icon: FileText, cls: "bg-red-500/10 text-red-600 dark:text-red-400" },
   text: { Icon: FileText, cls: "bg-violet-500/10 text-violet-600 dark:text-violet-400" },
+  folder: { Icon: FolderOpen, cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
   other: { Icon: File, cls: "bg-zinc-500/10 text-zinc-500" },
 } as const;
 

@@ -1,4 +1,4 @@
-import { Activity, LayoutDashboard, Library, Link2, Settings, UserCheck, Users } from "lucide-react";
+import { Activity, LayoutDashboard, Library, Link2, MessageCircle, Settings, UserCheck, Users } from "lucide-react";
 import { NavLink } from "@/components/nav-link";
 import { requirePermission } from "@/server/auth/current-user";
 import { getServerSettings, pendingCount } from "@/server/services/server";
@@ -25,6 +25,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
                 <span className="ml-auto rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-accent-fg">{pending}</span>
               )}
             </NavLink>
+            <NavLink href="/admin/messages" variant="side"><MessageCircle /> Messages</NavLink>
             <NavLink href="/admin/invites" variant="side"><Link2 /> Invite links</NavLink>
             <NavLink href="/admin/content" variant="side"><Library /> Content</NavLink>
             <NavLink href="/admin/audit" variant="side"><Activity /> Activity log</NavLink>

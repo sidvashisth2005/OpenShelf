@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { env } from "@/lib/env";
+import { FOLDER_SIZE_FACTOR } from "@/lib/file-types";
 import { assertPermission, AuthError } from "@/server/auth/current-user";
 import { rateLimit } from "@/server/rate-limit";
 import { createContent } from "@/server/services/content";
@@ -26,10 +27,12 @@ export async function POST(request: Request) {
     const user = await assertPermission("content:create");
 
     // Reject oversized bodies before buffering them (1 MB headroom for the form fields).
-    const maxBytes = env().MAX_UPLOAD_MB * 1024 * 1024;
+    // Several files shared together may total FOLDER_SIZE_FACTOR times the per-file limit;
+    // createContent checks each file and the total precisely.
+    const maxTotalMb = env().MAX_UPLOAD_MB * FOLDER_SIZE_FACTOR;
     const length = Number(request.headers.get("content-length") ?? 0);
-    if (length > maxBytes + 1024 * 1024) {
-      return NextResponse.json({ error: `Files can be at most ${env().MAX_UPLOAD_MB} MB.` }, { status: 413 });
+    if (length > (maxTotalMb + 1) * 1024 * 1024) {
+      return NextResponse.json({ error: `Uploads can total at most ${maxTotalMb} MB.` }, { status: 413 });
     }
     const limit = rateLimit(`upload:${user.id}`, 30, 60 * 60_000);
     if (!limit.ok) {

@@ -1,9 +1,14 @@
-import { fileKind } from "@/lib/file-types";
+import { FOLDER_MIME } from "@/lib/file-types";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { getContentForViewer } from "@/server/services/content";
+import { attachmentHeaders, serveStoredFile } from "@/server/serve-file";
+import { getContentForViewer, listContentFiles } from "@/server/services/content";
 import { storage } from "@/server/storage";
+import { zipStream } from "@/server/zip";
 
-/** Serves a stored file after the same visibility check as the content page. */
+/**
+ * Serves a stored file after the same visibility check as the content page.
+ * For a folder post it serves every file as one .zip ("Download all").
+ */
 export async function GET(request: Request, ctx: RouteContext<"/api/files/[id]">) {
   const { id } = await ctx.params;
   const viewer = await getCurrentUser();
@@ -13,26 +18,22 @@ export async function GET(request: Request, ctx: RouteContext<"/api/files/[id]">
   const directOpen = request.headers.get("sec-fetch-dest") === "document";
   const item = await getContentForViewer(viewer, id, { logAdminAccess: directOpen });
   if (!item) return new Response("Not found", { status: 404 });
-
-  const file = await storage().get(item.storageKey);
-  if (!file) return new Response("File missing", { status: 404 });
-
-  const kind = fileKind(item.mimeType);
-  const download = new URL(request.url).searchParams.has("download");
-  const inline = !download && kind !== "other";
-  const encodedName = encodeURIComponent(item.fileName).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16)}`);
   const isPublic = item.status === "published" && item.visibility === "public";
 
-  const headers = new Headers({
-    "Content-Type": kind === "text" ? `${item.mimeType}; charset=utf-8` : item.mimeType,
-    "Content-Length": String(file.size),
-    "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodedName}`,
-    "X-Content-Type-Options": "nosniff",
-    // Non-public files must never sit in a shared cache.
-    "Cache-Control": isPublic ? "public, max-age=60" : "private, no-store",
-  });
-  // Uploaded files run with no script privileges (the PDF viewer needs to be left alone).
-  if (kind !== "pdf") headers.set("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self'; media-src 'self'");
+  if (item.mimeType === FOLDER_MIME) {
+    const files = await listContentFiles(item.id);
+    const zip = zipStream(
+      files.map((f) => ({ path: f.path, open: async () => (await storage().get(f.storageKey))?.body ?? null })),
+      item.createdAt,
+    );
+    return new Response(zip, { headers: attachmentHeaders(`${item.fileName}.zip`, "application/zip", isPublic) });
+  }
 
-  return new Response(file.body, { headers });
+  return serveStoredFile({
+    storageKey: item.storageKey,
+    mimeType: item.mimeType,
+    fileName: item.fileName,
+    isPublic,
+    download: new URL(request.url).searchParams.has("download"),
+  });
 }

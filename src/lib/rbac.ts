@@ -34,6 +34,8 @@ export const PERMISSIONS = [
   // running the server: join mode, network sharing, invite links
   "server:manage",
   "invite:manage",
+  // reading every member thread, replying, and sending announcements to everyone
+  "message:manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 

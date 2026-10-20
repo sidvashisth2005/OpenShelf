@@ -12,7 +12,7 @@ export default async function UploadPage() {
   if (!hasPermission(user, "content:create")) notFound();
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader eyebrow="New upload" title="Share something" description="Add a file, give it a title, and choose who can see it." />
+      <PageHeader eyebrow="New upload" title="Share something" description="Add files or a whole folder, give it a title, and choose who can see it." />
       <div className="card p-6 sm:p-8">
         <UploadForm maxMb={env().MAX_UPLOAD_MB} />
       </div>

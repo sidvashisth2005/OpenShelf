@@ -209,7 +209,12 @@ export async function pendingCount(): Promise<number> {
 /** Sends every visitor to the first-run setup until the server has an owner. */
 export async function requireSetUp(): Promise<ServerSettings> {
   const settings = await getServerSettings();
-  if (!settings) redirect("/setup");
+  if (!settings) {
+    // This PC joined a team's server instead of becoming one: send it there.
+    const { getRemoteServer } = await import("./remote");
+    const remote = getRemoteServer();
+    redirect(remote ? remote.url : "/setup");
+  }
   return settings;
 }
 

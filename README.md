@@ -104,7 +104,12 @@ need admin rights.
 2. Pick a username, enter your email and a password.
 3. Tick the box to accept the Terms (you're asked **once**, never again) and click **Create account**.
 
-Done. Use **Upload** to add files, and find them under **My content**.
+Done. You land on the **Feed**, which shows everything shared on the server, including the admin's posts. Use
+**Upload** to share, **My content** for your own uploads, and **Messages** to talk to the admin.
+
+> **Already installed OpenShelf on your PC but want to join a team's server?** On the first screen (**Set up your
+> server**), open **Joining someone else's server instead?**, paste the invite link and click **Join this server**.
+> From then on, the OpenShelf icon opens the team's server.
 
 ---
 
@@ -112,9 +117,10 @@ Done. Use **Upload** to add files, and find them under **My content**.
 
 | | |
 | --- | --- |
-| <img src="docs/screenshots/upload.png" alt="Upload page" width="420"> | **Upload anything.** Drag and drop images, videos, music, PDFs and notes (up to 50 MB each), and choose who can see each one: **Public**, **Unlisted** (link only) or **Private**. |
+| <img src="docs/screenshots/upload.png" alt="Upload page" width="420"> | **Upload anything, even whole folders.** Drag and drop images, videos, music, PDFs, notes and code files, pick several files at once, or **Choose a folder** (for example a project with 10 code files). Up to 50 MB per file, 100 files per post. Choose who can see it: **Public**, **Unlisted** (link only) or **Private**. A folder post lists every file with a preview and offers **Download all (.zip)**. |
 | <img src="docs/screenshots/dashboard.png" alt="My content dashboard" width="420"> | **Manage their shelf.** See everything they uploaded, edit details, or delete items at any time. |
 | <img src="docs/screenshots/content.png" alt="A content page" width="420"> | **Share a page for every item,** with previews and Open/Download buttons. |
+| | **Message the admin.** **Messages** is a private conversation with the server's admin. Admins reply from **Admin → Messages** and can send **announcements** to everyone. An unread badge shows new messages. |
 
 <p align="center">
   <img src="docs/screenshots/home-dark.png" alt="Dark mode" width="560">

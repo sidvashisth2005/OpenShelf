@@ -1,25 +1,27 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Ban, Download, ExternalLink, Eye, Gavel, Pencil, Settings2, Trash2 } from "lucide-react";
+import { Ban, Download, ExternalLink, Eye, FileArchive, Gavel, Pencil, Settings2, Trash2 } from "lucide-react";
 import { deleteContentAction, moderateContentAction } from "@/app/actions/content";
 import { Badge } from "@/components/badge";
 import { FileKindIcon } from "@/components/file-kind-icon";
 import { ReasonActionForm } from "@/components/reason-action-form";
 import { Avatar, Callout } from "@/components/ui";
-import { fileKind } from "@/lib/file-types";
+import { FOLDER_MIME, fileKind } from "@/lib/file-types";
 import { formatBytes, formatDate } from "@/lib/format";
 import { can, hasPermission } from "@/lib/rbac";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { getContentForViewer, type ContentWithOwner } from "@/server/services/content";
+import { getContentForViewer, listContentFiles } from "@/server/services/content";
+import type { ContentFile } from "@/server/db/schema";
 import { storage } from "@/server/storage";
 
 export const metadata: Metadata = { title: "Content" };
 
 const TEXT_PREVIEW_BYTES = 64 * 1024;
 
-export default async function ContentPage({ params }: PageProps<"/c/[id]">) {
+export default async function ContentPage({ params, searchParams }: PageProps<"/c/[id]">) {
   const { id } = await params;
+  const selectedId = (await searchParams).file;
   const viewer = await getCurrentUser();
   const item = await getContentForViewer(viewer, id, { logAdminAccess: true });
   if (!item) notFound();
@@ -28,6 +30,9 @@ export default async function ContentPage({ params }: PageProps<"/c/[id]">) {
   const isModerator = hasPermission(viewer, "content:moderate:any");
   const isPublic = item.status === "published" && item.visibility !== "private" && item.owner.status === "active";
   const fileUrl = `/api/files/${item.id}`;
+  const isFolder = item.mimeType === FOLDER_MIME;
+  const files = isFolder ? await listContentFiles(item.id) : [];
+  const selected = files.find((f) => f.id === selectedId);
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -42,7 +47,21 @@ export default async function ContentPage({ params }: PageProps<"/c/[id]">) {
             Admin view: this content isn&apos;t public. Your access has been recorded in the audit log.
           </Callout>
         )}
-        <Preview item={item} fileUrl={fileUrl} />
+        {isFolder ? (
+          <>
+            {selected && (
+              <Preview
+                title={selected.path}
+                mimeType={selected.mimeType}
+                storageKey={selected.storageKey}
+                fileUrl={`${fileUrl}/${selected.id}`}
+              />
+            )}
+            <FolderFiles itemId={item.id} files={files} selectedId={selected?.id} />
+          </>
+        ) : (
+          <Preview title={item.title} mimeType={item.mimeType} storageKey={item.storageKey} fileUrl={fileUrl} />
+        )}
         <div>
           <div className="mb-3 flex flex-wrap gap-1.5">
             <Badge value={item.status} />
@@ -68,13 +87,19 @@ export default async function ContentPage({ params }: PageProps<"/c/[id]">) {
             <FileKindIcon mime={item.mimeType} />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium" title={item.fileName}>{item.fileName}</p>
-              <p className="text-xs text-muted">{item.mimeType} · {formatBytes(item.sizeBytes)}</p>
+              <p className="text-xs text-muted">
+                {isFolder ? `${files.length} file${files.length === 1 ? "" : "s"}` : item.mimeType} · {formatBytes(item.sizeBytes)}
+              </p>
             </div>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <a className="btn btn-secondary" href={fileUrl} target="_blank" rel="noopener"><ExternalLink /> Open</a>
-            <a className="btn btn-primary" href={`${fileUrl}?download`}><Download /> Download</a>
-          </div>
+          {isFolder ? (
+            <a className="btn btn-primary mt-4 w-full" href={fileUrl}><FileArchive /> Download all (.zip)</a>
+          ) : (
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <a className="btn btn-secondary" href={fileUrl} target="_blank" rel="noopener"><ExternalLink /> Open</a>
+              <a className="btn btn-primary" href={`${fileUrl}?download`}><Download /> Download</a>
+            </div>
+          )}
         </div>
 
         {isOwner && (
@@ -140,15 +165,40 @@ export default async function ContentPage({ params }: PageProps<"/c/[id]">) {
   );
 }
 
-async function Preview({ item, fileUrl }: { item: ContentWithOwner; fileUrl: string }) {
-  const kind = fileKind(item.mimeType);
+function FolderFiles({ itemId, files, selectedId }: { itemId: string; files: ContentFile[]; selectedId?: string }) {
+  return (
+    <div className="card overflow-hidden">
+      <ul className="divide-y divide-border">
+        {files.map((f) => (
+          <li key={f.id} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${f.id === selectedId ? "bg-accent-soft/40" : ""}`}>
+            <Link
+              href={`/c/${itemId}?file=${f.id}`}
+              scroll={false}
+              className="min-w-0 flex-1 truncate font-mono hover:text-accent"
+              title={f.path}
+            >
+              {f.path}
+            </Link>
+            <span className="shrink-0 text-xs text-muted">{formatBytes(f.sizeBytes)}</span>
+            <a className="btn btn-ghost shrink-0 px-2" href={`/api/files/${itemId}/${f.id}?download`} aria-label={`Download ${f.path}`} title="Download">
+              <Download />
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+async function Preview({ title, mimeType, storageKey, fileUrl }: { title: string; mimeType: string; storageKey: string; fileUrl: string }) {
+  const kind = fileKind(mimeType);
   const frame = "card flex items-center justify-center overflow-hidden bg-surface-2/60";
   switch (kind) {
     case "image":
       return (
         <div className={`${frame} p-2`}>
           {/* eslint-disable-next-line @next/next/no-img-element -- served by our access-checked route */}
-          <img src={fileUrl} alt={item.title} className="max-h-[70vh] w-auto rounded-xl" />
+          <img src={fileUrl} alt={title} className="max-h-[70vh] w-auto rounded-xl" />
         </div>
       );
     case "video":
@@ -156,20 +206,20 @@ async function Preview({ item, fileUrl }: { item: ContentWithOwner; fileUrl: str
     case "audio":
       return (
         <div className={`${frame} flex-col gap-4 p-8`}>
-          <FileKindIcon mime={item.mimeType} />
+          <FileKindIcon mime={mimeType} />
           <audio className="w-full" src={fileUrl} controls preload="metadata" />
         </div>
       );
     case "text":
       return (
         <pre className="card max-h-[70vh] overflow-auto p-6 font-mono text-sm leading-6 whitespace-pre-wrap">
-          {await readTextPreview(item)}
+          {await readTextPreview(storageKey)}
         </pre>
       );
     default:
       return (
         <div className={`${frame} aspect-video flex-col gap-4`}>
-          <FileKindIcon mime={item.mimeType} />
+          <FileKindIcon mime={mimeType} />
           <a className="btn btn-secondary" href={fileUrl} target="_blank" rel="noopener">
             <ExternalLink /> Open {kind === "pdf" ? "PDF" : "file"}
           </a>
@@ -178,8 +228,8 @@ async function Preview({ item, fileUrl }: { item: ContentWithOwner; fileUrl: str
   }
 }
 
-async function readTextPreview(item: ContentWithOwner): Promise<string> {
-  const file = await storage().get(item.storageKey);
+async function readTextPreview(storageKey: string): Promise<string> {
+  const file = await storage().get(storageKey);
   if (!file) return "(file missing)";
   const reader = file.body.getReader();
   const chunks: Uint8Array[] = [];

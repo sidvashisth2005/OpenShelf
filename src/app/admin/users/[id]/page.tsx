@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Ban, ImageOff, PauseCircle, PlayCircle, ShieldCheck } from "lucide-react";
+import { ArrowRight, Ban, ImageOff, MessageCircle, PauseCircle, PlayCircle, ShieldCheck } from "lucide-react";
 import { userAction } from "@/app/actions/admin";
 import { AuditTable } from "@/components/admin/audit-table";
 import { Badge } from "@/components/badge";
@@ -73,6 +73,9 @@ export default async function AdminUserPage({ params }: PageProps<"/admin/users/
 
         <div className="card space-y-4 p-6">
           <h2 className="flex items-center gap-2 font-semibold"><ShieldCheck className="size-4 text-accent" /> Account actions</h2>
+          {user.role === "user" && user.status !== "deleted" && hasPermission(admin, "message:manage") && (
+            <Link className="btn btn-secondary w-full" href={`/admin/messages/${user.id}`}><MessageCircle /> Message</Link>
+          )}
           {!manageable && <p className="text-sm text-muted">No actions available for this account.</p>}
           {manageable && hasPermission(admin, "user:suspend") && (
             user.status === "suspended" ? (
