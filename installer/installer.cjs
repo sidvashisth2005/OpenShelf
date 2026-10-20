@@ -369,7 +369,8 @@ async function main() {
 
   fs.mkdirSync(INSTALL_DIR, { recursive: true });
   if (isUpdate && fs.existsSync(NODE_EXE) && fs.existsSync(CLI)) runNode(["stop"]);
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "openshelf-install-"));
+  // Stage inside the install folder: renaming across drives (e.g. %TEMP% on C:, install on D:) fails with EXDEV.
+  const tmp = fs.mkdtempSync(path.join(INSTALL_DIR, ".staging-"));
   try {
     await getNode(tmp);
     const version = await getApp(tmp);
