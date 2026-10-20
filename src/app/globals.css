@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Design tokens. Light is the default; dark follows the OS setting.
+   --------------------------------------------------------------------------- */
+:root {
+  --background: #f7f7f9;
+  --surface: #ffffff;
+  --surface-2: #f1f1f4;
+  --foreground: #18181b;
+  --muted: #71717a;
+  --border: #e4e4e7;
+  --accent: #6d28d9;
+  --accent-2: #db2777;
+  --accent-soft: #ede9fe;
+  --accent-fg: #ffffff;
+  --danger: #dc2626;
+  --success: #059669;
+  --warn-bg: #fffbeb;
+  --warn-fg: #92400e;
+  --ring: rgb(109 40 217 / 0.25);
+  --shadow: 0 1px 2px rgb(24 24 27 / 0.04), 0 4px 16px -4px rgb(24 24 27 / 0.08);
+  --shadow-lg: 0 2px 4px rgb(24 24 27 / 0.04), 0 16px 40px -12px rgb(24 24 27 / 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #09090b;
+    --surface: #131316;
+    --surface-2: #1c1c21;
+    --foreground: #f4f4f5;
+    --muted: #a1a1aa;
+    --border: #27272a;
+    --accent: #a78bfa;
+    --accent-2: #f472b6;
+    --accent-soft: #2e1065;
+    --accent-fg: #0b0b0f;
+    --danger: #f87171;
+    --success: #34d399;
+    --warn-bg: #2a1d05;
+    --warn-fg: #fcd34d;
+    --ring: rgb(167 139 250 / 0.3);
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 16px -4px rgb(0 0 0 / 0.5);
+    --shadow-lg: 0 2px 4px rgb(0 0 0 / 0.4), 0 16px 40px -12px rgb(0 0 0 / 0.7);
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warn-bg: var(--warn-bg);
+  --color-warn-fg: var(--warn-fg);
+  --shadow-soft: var(--shadow);
+  --shadow-lift: var(--shadow-lg);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium whitespace-nowrap transition focus-visible:ring-4 focus-visible:ring-(--ring) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 [&_svg]:size-4 [&_svg]:shrink-0;
+  }
+  .btn-primary {
+    @apply bg-accent text-accent-fg shadow-soft hover:brightness-110 active:brightness-95;
+  }
+  .btn-secondary {
+    @apply border border-border bg-surface text-foreground shadow-soft hover:bg-surface-2;
+  }
+  .btn-ghost {
+    @apply text-muted hover:bg-surface-2 hover:text-foreground;
+  }
+  .btn-danger {
+    @apply border border-danger/30 bg-danger/5 text-danger hover:bg-danger/10;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+  .input {
+    @apply w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm shadow-soft transition outline-none placeholder:text-muted/70 focus:border-accent focus:ring-4 focus:ring-(--ring);
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium;
+  }
+  .hint {
+    @apply mt-1.5 text-xs text-muted;
+  }
+  .card {
+    @apply rounded-2xl border border-border bg-surface shadow-soft;
+  }
+  .field-error {
+    @apply mt-1.5 text-sm text-danger;
+  }
+  .link {
+    @apply font-medium text-accent underline-offset-4 hover:underline;
+  }
+  .eyebrow {
+    @apply text-xs font-semibold tracking-wider text-accent uppercase;
+  }
+  .page-title {
+    @apply text-xl font-semibold tracking-tight sm:text-2xl;
+  }
+  .gradient-text {
+    @apply bg-linear-to-r from-accent to-accent-2 bg-clip-text text-transparent;
+  }
+  .table {
+    @apply w-full text-left text-sm;
+  }
+  .table thead {
+    @apply bg-surface-2/60 text-xs tracking-wide text-muted uppercase;
+  }
+  .table th {
+    @apply px-4 py-3 font-medium;
+  }
+  .table td {
+    @apply border-t border-border px-4 py-3;
+  }
+  .table tbody tr {
+    @apply transition hover:bg-surface-2/50;
+  }
+
+  .prose-legal h2 {
+    @apply mt-10 mb-3 text-xl font-semibold tracking-tight;
+  }
+  .prose-legal h3 {
+    @apply mt-5 mb-1 font-semibold;
+  }
+  .prose-legal p,
+  .prose-legal li {
+    @apply leading-7 text-foreground/85;
+  }
+  .prose-legal ul {
+    @apply ml-5 list-disc space-y-1.5 marker:text-accent;
+  }
+}

@@ -1,0 +1,55 @@
+# Production-style stack: Postgres + one-shot migrations + the app.
+#
+#   cp .env.example .env      # fill in SUPER_ADMIN_* and POSTGRES_PASSWORD
+#   docker compose up -d --build
+#
+# The app is then on http://localhost:3000. Put a TLS-terminating reverse proxy
+# (Caddy, nginx, Traefik...) in front of it for real deployments.
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: openshelf
+      POSTGRES_USER: openshelf
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openshelf -d openshelf"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: postgres://openshelf:${POSTGRES_PASSWORD}@db:5432/openshelf
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runtime
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://openshelf:${POSTGRES_PASSWORD}@db:5432/openshelf
+      UPLOAD_DIR: /data/uploads
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
+  uploads:
