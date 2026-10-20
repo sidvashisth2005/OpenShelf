@@ -21,6 +21,12 @@ const schema = z.object({
   SUPER_ADMIN_EMAIL: optionalString,
   SUPER_ADMIN_PASSWORD_HASH_B64: optionalString,
   PLATFORM_NAME: z.string().default("OpenShelf"),
+  // Super Admin panel (Cloudflare Worker). Set by the installed app from app/panel.json.
+  PANEL_URL: optionalString,
+  PANEL_PUBLIC_KEY: optionalString, // Ed25519 raw public key, base64url
+  OPENSHELF_NODE_KEY_FILE: optionalString, // this server's identity (written by openshelf.mjs)
+  OPENSHELF_TUNNEL_FILE: optionalString, // current public tunnel URL while online
+  OPENSHELF_GATE_SECRET: optionalString, // HMAC secret for the tunnel gate cookie
   PLATFORM_CONTACT_EMAIL: optionalString,
 });
 

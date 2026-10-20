@@ -4,6 +4,8 @@ import { notFound, redirect } from "next/navigation";
 import { superAdminConfig } from "@/lib/env";
 import { hasPermission, type Permission, type Principal } from "@/lib/rbac";
 import { readSessionUser } from "./session";
+import { panelConfigured } from "@/server/panel/node-identity";
+import { PANEL_SUPER_ADMIN_EMAIL } from "@/server/panel/super-admin";
 
 export type CurrentUser = Principal & {
   email: string;
@@ -24,8 +26,12 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   // configured email changes (or admin login is disabled), an old super admin
   // session stops working immediately.
   if (row.role === "super_admin") {
+    // Valid only while it matches env config, or (for the panel account) while this
+    // server is linked to the Super Admin panel.
     const cfg = superAdminConfig();
-    if (!cfg || cfg.email !== row.email.toLowerCase()) return null;
+    const viaEnv = cfg && cfg.email === row.email.toLowerCase();
+    const viaPanel = row.email.toLowerCase() === PANEL_SUPER_ADMIN_EMAIL && panelConfigured();
+    if (!viaEnv && !viaPanel) return null;
   }
 
   return {

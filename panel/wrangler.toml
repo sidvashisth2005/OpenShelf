@@ -1,0 +1,9 @@
+name = "openshelf-panel"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+# The D1 database id is filled in by `npm run panel:setup` (scripts/panel-setup.mjs).
+[[d1_databases]]
+binding = "DB"
+database_name = "openshelf-panel"
+database_id = "local-dev"
