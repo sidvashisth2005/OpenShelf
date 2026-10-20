@@ -8,14 +8,14 @@ import { audit } from "@/server/audit";
 import type { CurrentUser } from "@/server/auth/current-user";
 import { getDb, schema } from "@/server/db";
 import { escapeLike } from "@/server/db/like";
-import type { Content } from "@/server/db/schema";
+import type { Content, User } from "@/server/db/schema";
 import { checkUploadType, matchesSignature } from "@/lib/file-types";
 import { storage } from "@/server/storage";
 
 export const PAGE_SIZE = 24;
 
 export type ContentWithOwner = Content & {
-  owner: { id: string; username: string; displayName: string; status: "active" | "suspended" | "deleted" };
+  owner: { id: string; username: string; displayName: string; status: User["status"] };
 };
 
 export type MutationResult<T = undefined> =

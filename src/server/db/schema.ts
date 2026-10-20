@@ -1,7 +1,9 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -12,8 +14,11 @@ import {
 } from "drizzle-orm/pg-core";
 
 // Keep in sync with ROLES in src/lib/rbac.ts (adding a role needs a migration).
-export const userRole = pgEnum("user_role", ["user", "super_admin"]);
-export const userStatus = pgEnum("user_status", ["active", "suspended", "deleted"]);
+// "user" = a member of this server, "admin" = the server owner, "super_admin" = the platform owner.
+export const userRole = pgEnum("user_role", ["user", "super_admin", "admin"]);
+// "pending" = signed up on a server that requires the admin to approve new members.
+export const userStatus = pgEnum("user_status", ["active", "suspended", "deleted", "pending"]);
+export const joinMode = pgEnum("join_mode", ["open", "invite", "approval"]);
 export const contentVisibility = pgEnum("content_visibility", ["public", "unlisted", "private"]);
 export const contentStatus = pgEnum("content_status", ["published", "draft", "removed"]);
 
@@ -128,6 +133,36 @@ export const auditLogs = pgTable(
   ],
 );
 
+/** Single-row table (id = 1) describing this server. Absent until the owner finishes /setup. */
+export const serverSettings = pgTable("server_settings", {
+  id: integer("id").primaryKey().default(1),
+  name: text("name").notNull(),
+  joinMode: joinMode("join_mode").notNull().default("invite"),
+  // Listen on the local network (Wi-Fi/LAN) instead of this PC only.
+  lanEnabled: boolean("lan_enabled").notNull().default(false),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const invites = pgTable(
+  "invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // SHA-256 of the invite token; the raw token only ever lives in the link.
+    tokenHash: text("token_hash").notNull(),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    note: text("note").notNull().default(""),
+    maxUses: integer("max_uses"),
+    uses: integer("uses").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("invites_token_hash_key").on(t.tokenHash)],
+);
+
 export type User = typeof users.$inferSelect;
 export type Content = typeof content.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
+export type ServerSettings = typeof serverSettings.$inferSelect;
+export type Invite = typeof invites.$inferSelect;

@@ -7,13 +7,15 @@ import { env } from "@/lib/env";
 import { pageParam } from "@/lib/format";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { listPublicFeed, PAGE_SIZE } from "@/server/services/content";
+import { requireSetUp } from "@/server/services/server";
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
+  const settings = await requireSetUp();
   const sp = await searchParams;
   const page = pageParam(sp.page);
   const [rows, user] = await Promise.all([listPublicFeed(page), getCurrentUser()]);
   const items = rows.slice(0, PAGE_SIZE);
-  const name = env().PLATFORM_NAME;
+  const name = settings.name;
 
   return (
     <div className="space-y-6">

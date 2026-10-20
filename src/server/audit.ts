@@ -21,12 +21,19 @@ export type AuditAction =
   | "admin.content.delete"
   | "admin.user.suspend"
   | "admin.user.unsuspend"
-  | "admin.user.remove";
+  | "admin.user.remove"
+  | "admin.user.approve"
+  | "admin.user.reject"
+  | "admin.invite.create"
+  | "admin.invite.revoke"
+  | "admin.server.settings"
+  | "server.setup"
+  | "auth.join_requested";
 
 export async function audit(entry: {
   actor: { id: string; role: Role } | null;
   action: AuditAction;
-  targetType?: "user" | "content";
+  targetType?: "user" | "content" | "invite";
   targetId?: string;
   metadata?: Record<string, unknown>;
 }): Promise<void> {

@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, eq, ne, or, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { superAdminConfig } from "@/lib/env";
 import { TOS_VERSION } from "@/lib/legal";
 import type { Role } from "@/lib/rbac";
@@ -13,8 +13,9 @@ import { getDb, schema } from "@/server/db";
 import { isUniqueViolation } from "@/server/db/errors";
 import { rateLimit } from "@/server/rate-limit";
 import { requestMeta } from "@/server/request-meta";
+import { findUsableInvite, getServerSettings } from "./server";
 
-export type AuthResult = { ok: true } | { ok: false; error?: string; fieldErrors?: FieldErrors };
+export type AuthResult = { ok: true; pending?: boolean } | { ok: false; error?: string; fieldErrors?: FieldErrors };
 
 const SUPER_ADMIN_USERNAME = "superadmin";
 const emailEquals = (email: string) => sql`lower(${schema.users.email}) = ${email}`;
@@ -35,6 +36,16 @@ export async function signup(input: Record<string, unknown>): Promise<AuthResult
     return { ok: false, fieldErrors: { email: "This email can't be used to register." } };
   }
 
+  // Who may join is decided by the server's join mode; a valid invite link always lets you in.
+  const settings = await getServerSettings();
+  if (!settings) return { ok: false, error: "This server hasn't been set up yet." };
+  const invite = await findUsableInvite(input.invite);
+  if (input.invite && !invite) return { ok: false, error: "This invite link is no longer valid. Ask the admin for a new one." };
+  if (!invite && settings.joinMode === "invite") {
+    return { ok: false, error: `${settings.name} is invite-only. Ask its admin for an invite link.` };
+  }
+  const status = invite || settings.joinMode === "open" ? "active" : "pending";
+
   const db = await getDb();
   const taken = await findTaken(email, username);
   if (taken) return { ok: false, fieldErrors: taken };
@@ -43,6 +54,15 @@ export async function signup(input: Record<string, unknown>): Promise<AuthResult
   let userId: string;
   try {
     userId = await db.transaction(async (tx) => {
+      // Use the invite seat first, inside the transaction, so two people can't share a single-use link.
+      if (invite) {
+        const used = await tx
+          .update(schema.invites)
+          .set({ uses: sql`${schema.invites.uses} + 1` })
+          .where(and(eq(schema.invites.id, invite.id), isNull(schema.invites.revokedAt), or(isNull(schema.invites.maxUses), lt(schema.invites.uses, schema.invites.maxUses))))
+          .returning({ id: schema.invites.id });
+        if (used.length !== 1) throw new Error("INVITE_USED_UP");
+      }
       const now = new Date();
       const [user] = await tx
         .insert(schema.users)
@@ -52,9 +72,10 @@ export async function signup(input: Record<string, unknown>): Promise<AuthResult
           displayName,
           passwordHash,
           role: "user",
+          status,
           tosVersion: TOS_VERSION,
           tosAcceptedAt: now,
-          lastLoginAt: now,
+          lastLoginAt: status === "active" ? now : null,
         })
         .returning({ id: schema.users.id });
       await tx
@@ -63,14 +84,21 @@ export async function signup(input: Record<string, unknown>): Promise<AuthResult
       return user.id;
     });
   } catch (err) {
+    if (err instanceof Error && err.message === "INVITE_USED_UP") {
+      return { ok: false, error: "This invite link was just used up. Ask the admin for a new one." };
+    }
     // Lost a race with a concurrent signup for the same email/username.
     if (!isUniqueViolation(err)) throw err;
     return { ok: false, fieldErrors: (await findTaken(email, username)) ?? { email: "That account already exists." } };
   }
 
   const actor = { id: userId, role: "user" as const };
-  await audit({ actor, action: "auth.signup", targetType: "user", targetId: userId });
+  await audit({ actor, action: "auth.signup", targetType: "user", targetId: userId, metadata: { status, invite: invite?.id } });
   await audit({ actor, action: "auth.tos_accepted", targetType: "user", targetId: userId, metadata: { version: TOS_VERSION } });
+  if (status === "pending") {
+    await audit({ actor, action: "auth.join_requested", targetType: "user", targetId: userId });
+    return { ok: true, pending: true };
+  }
   await createSession(actor);
   return { ok: true };
 }
@@ -121,7 +149,8 @@ export async function login(input: Record<string, unknown>): Promise<AuthResult>
   const [user] = await db
     .select()
     .from(schema.users)
-    .where(and(emailEquals(email), eq(schema.users.role, "user")))
+    // Members and the server admin sign in with a password; the super admin only via env config.
+    .where(and(emailEquals(email), ne(schema.users.role, "super_admin")))
     .limit(1);
 
   const valid = await verifyPassword(password, user?.passwordHash);
@@ -136,6 +165,9 @@ export async function login(input: Record<string, unknown>): Promise<AuthResult>
     return generic;
   }
   // Status is revealed only after a correct password, so it can't be probed.
+  if (user.status === "pending") {
+    return { ok: false, error: "Your request to join is waiting for the admin to approve it." };
+  }
   if (user.status === "suspended") {
     return { ok: false, error: `This account is suspended.${user.statusReason ? ` Reason: ${user.statusReason}` : ""}` };
   }

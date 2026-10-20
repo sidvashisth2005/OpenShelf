@@ -18,7 +18,8 @@ export async function askHidden(question) {
   if (!stdin.isTTY) {
     const chunks = [];
     for await (const c of stdin) chunks.push(c);
-    return Buffer.concat(chunks).toString("utf8").replace(/\r?\n$/, "");
+    // Windows PowerShell 5.1 prefixes piped stdin with a UTF-8 BOM.
+    return Buffer.concat(chunks).toString("utf8").replace(/^ÿ/, "").replace(/\r?\n$/, "");
   }
   process.stdout.write(question);
   stdin.setRawMode(true);

@@ -1,15 +1,28 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { and, eq, gt, lt } from "drizzle-orm";
 import { env } from "@/lib/env";
 import type { Role } from "@/lib/rbac";
 import { getDb, schema } from "@/server/db";
 import { requestMeta } from "@/server/request-meta";
 
-const COOKIE_NAME = process.env.NODE_ENV === "production" ? "__Host-session" : "session";
+// HTTPS gets a locked-down __Host- cookie. Plain http (localhost, or a LAN address when the server is
+// shared on Wi-Fi) cannot store Secure cookies, so it gets an ordinary HttpOnly one instead.
+const SECURE_COOKIE = "__Host-session";
+const PLAIN_COOKIE = "session";
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
+
+async function isHttps(): Promise<boolean> {
+  if (process.env.FORCE_HTTPS === "true") return true;
+  return (await headers()).get("x-forwarded-proto") === "https";
+}
+
+async function readToken(): Promise<string | undefined> {
+  const jar = await cookies();
+  return jar.get(SECURE_COOKIE)?.value ?? jar.get(PLAIN_COOKIE)?.value;
+}
 
 function ttlMs(role: Role): number {
   const e = env();
@@ -27,9 +40,10 @@ export async function createSession(user: { id: string; role: Role }): Promise<v
   // Opportunistic cleanup of expired sessions (indexed on expires_at).
   await db.delete(schema.sessions).where(lt(schema.sessions.expiresAt, new Date()));
 
-  (await cookies()).set(COOKIE_NAME, token, {
+  const secure = await isHttps();
+  (await cookies()).set(secure ? SECURE_COOKIE : PLAIN_COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure,
     sameSite: "lax",
     path: "/",
     expires: expiresAt,
@@ -38,7 +52,7 @@ export async function createSession(user: { id: string; role: Role }): Promise<v
 
 /** Returns the user row for a valid, unexpired session cookie, or null. */
 export async function readSessionUser(): Promise<typeof schema.users.$inferSelect | null> {
-  const token = (await cookies()).get(COOKIE_NAME)?.value;
+  const token = await readToken();
   if (!token) return null;
   const db = await getDb();
   const rows = await db
@@ -51,13 +65,14 @@ export async function readSessionUser(): Promise<typeof schema.users.$inferSelec
 }
 
 export async function destroyCurrentSession(): Promise<void> {
-  const jar = await cookies();
-  const token = jar.get(COOKIE_NAME)?.value;
+  const token = await readToken();
   if (token) {
     const db = await getDb();
     await db.delete(schema.sessions).where(eq(schema.sessions.id, hashToken(token)));
   }
-  jar.delete(COOKIE_NAME);
+  const jar = await cookies();
+  jar.delete(SECURE_COOKIE);
+  jar.delete(PLAIN_COOKIE);
 }
 
 export async function destroyAllSessionsForUser(userId: string): Promise<void> {

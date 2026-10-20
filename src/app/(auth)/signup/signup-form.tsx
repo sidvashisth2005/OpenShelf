@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
+import { Hourglass } from "lucide-react";
 import { signupAction } from "@/app/actions/auth";
 import { FieldError, FormError } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
@@ -11,17 +12,36 @@ export function SignupForm({
   tosVersion,
   formToken,
   turnstileSiteKey,
+  invite,
+  submitLabel = "Create account",
 }: {
   notice: React.ReactNode;
   tosVersion: string;
   formToken: string;
   turnstileSiteKey?: string;
+  invite?: string;
+  submitLabel?: string;
 }) {
   const [state, action] = useActionState(signupAction, undefined);
   const fe = state?.fieldErrors ?? {};
+
+  if (state?.ok && state.message === "pending") {
+    return (
+      <div className="rounded-xl bg-surface-2/70 p-6 text-center">
+        <Hourglass className="mx-auto mb-3 size-8 text-accent" />
+        <p className="font-semibold">Request sent</p>
+        <p className="mt-1 text-sm text-muted">
+          The admin will review your request. Once it&apos;s approved, you can{" "}
+          <Link className="link" href="/login">sign in</Link> with the email and password you just chose.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <form action={action} className="space-y-4" noValidate>
       <FormError message={state?.error} />
+      {invite && <input type="hidden" name="invite" value={invite} />}
       {/* Bot protection: a signed issue-time token and a honeypot humans never see. */}
       <input type="hidden" name="formToken" value={formToken} />
       <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
@@ -68,7 +88,7 @@ export function SignupForm({
 
       {turnstileSiteKey && <div className="cf-turnstile" data-sitekey={turnstileSiteKey} data-theme="auto" />}
 
-      <SubmitButton block pendingText="Creating account…">Create account</SubmitButton>
+      <SubmitButton block pendingText="Sending…">{submitLabel}</SubmitButton>
     </form>
   );
 }

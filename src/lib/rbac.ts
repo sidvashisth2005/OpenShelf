@@ -5,9 +5,13 @@
  * `user_role` DB enum via a migration) and give it a permission list below.
  * Code checks permissions, never role names, so new roles slot in without
  * touching call sites.
+ *
+ *   user        a member of this server
+ *   admin       the server owner (whoever installed it): manages members, invites and settings
+ *   super_admin the platform owner, configured from env: everything an admin can do
  */
 
-export const ROLES = ["user", "super_admin"] as const;
+export const ROLES = ["user", "admin", "super_admin"] as const;
 export type Role = (typeof ROLES)[number];
 
 export const PERMISSIONS = [
@@ -15,26 +19,34 @@ export const PERMISSIONS = [
   "content:create",
   "content:update:own",
   "content:delete:own",
-  // platform-wide content powers
+  // content powers over every member
   "content:read:any",
   "content:moderate:any", // remove / restore
   "content:delete:any",
-  // user management
+  // member management
   "user:read:any",
   "user:suspend",
   "user:remove",
+  "user:approve",
   // monitoring
   "audit:read",
   "admin:dashboard",
+  // running the server: join mode, network sharing, invite links
+  "server:manage",
+  "invite:manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
+const MEMBER: readonly Permission[] = ["content:create", "content:update:own", "content:delete:own"];
+
 const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
-  user: ["content:create", "content:update:own", "content:delete:own"],
+  user: MEMBER,
+  // Members consent to this access once, at sign-up (see src/lib/legal.ts).
+  admin: PERMISSIONS,
   super_admin: PERMISSIONS,
 };
 
-export type Principal = { id: string; role: Role; status: "active" | "suspended" | "deleted" };
+export type Principal = { id: string; role: Role; status: "active" | "suspended" | "deleted" | "pending" };
 
 export function permissionsFor(role: Role): readonly Permission[] {
   return ROLE_PERMISSIONS[role] ?? [];
@@ -43,6 +55,13 @@ export function permissionsFor(role: Role): readonly Permission[] {
 export function hasPermission(principal: Principal | null | undefined, permission: Permission): boolean {
   if (!principal || principal.status !== "active") return false;
   return permissionsFor(principal.role).includes(permission);
+}
+
+// Higher rank can act on lower rank, never the reverse: the admin cannot suspend the super admin.
+const RANK: Record<Role, number> = { user: 0, admin: 1, super_admin: 2 };
+
+export function outranks(actor: { role: Role }, target: { role: Role }): boolean {
+  return RANK[actor.role] > RANK[target.role];
 }
 
 type Owned = { ownerId: string };

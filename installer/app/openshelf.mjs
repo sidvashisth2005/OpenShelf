@@ -59,10 +59,48 @@ function arg(name) {
   return i > 0 ? process.argv[i + 1] : undefined;
 }
 
+/** Prompts without echo when attached to a terminal (used by `configure` to reset the admin password). */
+function askHidden(question) {
+  const stdin = process.stdin;
+  process.stdout.write(question);
+  stdin.setRawMode(true);
+  stdin.resume();
+  stdin.setEncoding("utf8");
+  return new Promise((resolve, reject) => {
+    let value = "";
+    const onData = (chunk) => {
+      for (const ch of chunk) {
+        if (ch === "\r" || ch === "\n") {
+          stdin.setRawMode(false);
+          stdin.pause();
+          stdin.off("data", onData);
+          process.stdout.write("\n");
+          return resolve(value);
+        }
+        if (ch === "\u0003") {
+          stdin.setRawMode(false);
+          return reject(new Error("Cancelled"));
+        }
+        if (ch === "\u007f" || ch === "\b") value = value.slice(0, -1);
+        else value += ch;
+      }
+    };
+    stdin.on("data", onData);
+  });
+}
+
+async function readPassword() {
+  if (!process.stdin.isTTY) return readStdin();
+  const pw = await askHidden("New admin password (min 14 characters): ");
+  if ((await askHidden("Repeat password: ")) !== pw) throw new Error("Passwords don't match.");
+  return pw;
+}
+
 async function readStdin() {
   const chunks = [];
   for await (const c of process.stdin) chunks.push(c);
-  return Buffer.concat(chunks).toString("utf8").replace(/\r?\n$/, "");
+  // Windows PowerShell 5.1 prefixes piped stdin with a UTF-8 BOM; it must not become part of the password.
+  return Buffer.concat(chunks).toString("utf8").replace(/^ÿ/, "").replace(/\r?\n$/, "");
 }
 
 function freePort(preferred) {
@@ -113,7 +151,7 @@ async function configure() {
   const email = arg("email")?.trim().toLowerCase();
   if (email) {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Invalid email address.");
-    const password = await readStdin();
+    const password = await readPassword();
     if (password.length < 14) throw new Error("The admin password must be at least 14 characters.");
     const { default: bcrypt } = await import("bcryptjs");
     cfg.SUPER_ADMIN_EMAIL = email;

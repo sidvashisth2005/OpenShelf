@@ -16,6 +16,7 @@ function safeNext(v: FormDataEntryValue | null): string {
 export async function signupAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const result = await signup(Object.fromEntries(formData));
   if (!result.ok) return { error: result.error, fieldErrors: result.fieldErrors };
+  if (result.pending) return { ok: true, message: "pending" };
   redirect("/dashboard");
 }
 
@@ -23,7 +24,8 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   const result = await login(Object.fromEntries(formData));
   if (!result.ok) return { error: result.error, fieldErrors: result.fieldErrors };
   const user = await getCurrentUser();
-  redirect(user?.role === "super_admin" ? "/admin" : safeNext(formData.get("next")));
+  const isAdmin = user?.role === "super_admin" || user?.role === "admin";
+  redirect(isAdmin && !formData.get("next") ? "/admin" : safeNext(formData.get("next")));
 }
 
 export async function logoutAction(): Promise<void> {

@@ -84,3 +84,26 @@ export function fieldErrors(error: z.ZodError): FieldErrors {
   }
   return out;
 }
+
+export const setupSchema = z.object({
+  serverName: z.string().trim().min(2, "Give your server a name.").max(60),
+  email: emailSchema,
+  username: usernameSchema,
+  displayName: z.string().trim().min(1, "Enter your name.").max(60),
+  password: passwordSchema,
+  acceptTerms: z.literal("on", { error: "Accept the Terms of Service and Privacy Policy to continue." }),
+});
+
+export const serverSettingsSchema = z.object({
+  name: z.string().trim().min(2, "Give your server a name.").max(60),
+  joinMode: z.enum(["open", "invite", "approval"]),
+  lanEnabled: z
+    .union([z.literal("on"), z.literal("off"), z.undefined()])
+    .transform((v) => v === "on"),
+});
+
+export const inviteSchema = z.object({
+  note: z.string().trim().max(80).default(""),
+  maxUses: z.coerce.number().int().min(0).max(1000).default(0),
+  expiresInDays: z.coerce.number().int().min(0).max(365).default(7),
+});

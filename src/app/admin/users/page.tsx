@@ -20,7 +20,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
 
   return (
     <div>
-      <PageHeader eyebrow="Accounts" title="Users" description={`${total} account${total === 1 ? "" : "s"} on the platform.`} />
+      <PageHeader eyebrow="Accounts" title="Members" description={`${total} account${total === 1 ? "" : "s"} on this server.`} />
       <form className="card mb-6 flex flex-wrap gap-2 p-3" role="search">
         <div className="relative min-w-56 flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
@@ -30,6 +30,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
           <option value="">All statuses</option>
           <option value="active">Active</option>
           <option value="suspended">Suspended</option>
+          <option value="pending">Waiting for approval</option>
           <option value="deleted">Removed</option>
         </select>
         <button className="btn btn-secondary" type="submit">Filter</button>

@@ -1,6 +1,6 @@
 import "server-only";
 import { and, count, desc, eq, gte, ilike, ne, or, sql, sum, type SQL } from "drizzle-orm";
-import { hasPermission } from "@/lib/rbac";
+import { hasPermission, outranks } from "@/lib/rbac";
 import { reasonSchema } from "@/lib/validation";
 import { audit, type AuditAction } from "@/server/audit";
 import type { CurrentUser } from "@/server/auth/current-user";
@@ -16,7 +16,7 @@ export async function adminListUsers(admin: CurrentUser, filters: { q?: string; 
     const like = `%${escapeLike(filters.q)}%`;
     conds.push(or(ilike(schema.users.email, like), ilike(schema.users.username, like), ilike(schema.users.displayName, like)));
   }
-  if (filters.status === "active" || filters.status === "suspended" || filters.status === "deleted") {
+  if (filters.status === "active" || filters.status === "suspended" || filters.status === "deleted" || filters.status === "pending") {
     conds.push(eq(schema.users.status, filters.status));
   }
   const where = conds.length ? and(...conds) : undefined;
@@ -96,8 +96,10 @@ export async function adminUserAction(
   const db = await getDb();
   const [target] = await db.select().from(schema.users).where(eq(schema.users.id, id)).limit(1);
   if (!target) return { ok: false, status: 404, error: "User not found." };
-  // The config-defined super admin can't be locked out from inside the app.
-  if (target.role === "super_admin") return { ok: false, status: 403, error: "The super admin account can't be changed here." };
+  // Nobody can act on themselves or on an equal/higher role (the admin can't lock out the super admin).
+  if (target.id === admin.id || !outranks(admin, target)) {
+    return { ok: false, status: 403, error: "You can't change this account." };
+  }
   if (target.status === "deleted") return { ok: false, status: 400, error: "This account was already removed." };
 
   if (action === "suspend") {

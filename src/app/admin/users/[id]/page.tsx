@@ -8,7 +8,7 @@ import { ContentCard, ContentGrid } from "@/components/content-card";
 import { ReasonActionForm } from "@/components/reason-action-form";
 import { Avatar, EmptyState } from "@/components/ui";
 import { formatDate } from "@/lib/format";
-import { hasPermission } from "@/lib/rbac";
+import { hasPermission, outranks } from "@/lib/rbac";
 import { requirePermission } from "@/server/auth/current-user";
 import { adminListContent } from "@/server/services/content";
 import { adminGetUser, adminListAudit } from "@/server/services/users";
@@ -25,7 +25,7 @@ export default async function AdminUserPage({ params }: PageProps<"/admin/users/
     adminListContent(admin, { ownerId: id, page: 1 }),
     adminListAudit(admin, { actorId: id, page: 1 }),
   ]);
-  const manageable = user.role !== "super_admin" && user.status !== "deleted";
+  const manageable = user.id !== admin.id && outranks(admin, user) && user.status !== "deleted";
 
   const facts: [string, React.ReactNode][] = [
     ["Email", user.email],

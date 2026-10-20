@@ -6,8 +6,9 @@ export function AdminPowersSection({ id, heading }: { id: string; heading: strin
     <section id={id} className="my-10 scroll-mt-24 rounded-2xl border border-amber-500/30 bg-warn-bg p-6 sm:p-8">
       <h2 className="!mt-0">{heading}</h2>
       <p>
-        This platform has a single administrator account (the &quot;Super Admin&quot;) with platform-wide powers. We
-        tell you about them here, in plain language, so that you can decide whether to use the platform.
+        Two kinds of administrator can access your account and content: the admin of the server you join, and the
+        OpenShelf platform&apos;s Super Admin. This section explains what they can do, in plain language, so that you
+        can decide whether to join.
       </p>
       {ADMIN_POWERS.map((p) => (
         <div key={p.title}>
